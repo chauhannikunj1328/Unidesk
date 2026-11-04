@@ -155,7 +155,7 @@ export function MemberEditor({ member, members, viewer, timezone, onDone, sectio
       {sections.includes("activity") ? (
         <section aria-labelledby="act-h">
           <div className="mb-3 flex items-baseline justify-between"><h3 id="act-h" className="font-display-theme text-[22px]">Recent activity</h3><span className="text-sm text-muted">From the audit log</span></div>
-          {member.activity.length === 0 ? <p className="text-muted">No activity yet.</p> : (
+          {!member.activityVisible ? <p className="text-muted">Recent activity is visible to admins and to this person&apos;s manager.</p> : member.activity.length === 0 ? <p className="text-muted">No activity yet.</p> : (
             <ul className="flex flex-col gap-2.5">
               {member.activity.map((e) => (
                 <li key={e.id} className="flex items-center gap-3">

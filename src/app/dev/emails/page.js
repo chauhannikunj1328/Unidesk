@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/server/prisma";
+import { listRecentEmails } from "@/server/dev-outbox";
 
 export const metadata = { title: "Sent emails · Unidesk" };
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /** Development only: every email the app "sent", with its link, so flows can be tried without a mail provider. */
 export default async function DevEmailsPage() {
   if (process.env.NODE_ENV === "production") notFound();
-  const rows = await prisma.emailLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
+  const rows = await listRecentEmails();
   return (
     <main style={{ maxWidth: 760, margin: "40px auto", padding: "0 16px", fontFamily: "system-ui" }}>
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Sent emails (development)</h1>

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { shouldTakeFromUrl } from "@/lib/typing";
 
 /** URL state for Team lists: ?id=, ?role=, ?status=, ?group=, ?q=. Reloading or sharing the link keeps the view. */
 export function useTeamParams() {
@@ -28,8 +29,15 @@ export function useTeamParams() {
 export function useDebouncedQuery(initial, onCommit, delay = 250) {
   const [value, setValue] = useState(initial ?? "");
   const timer = useRef(null);
-  useEffect(() => setValue(initial ?? ""), [initial]);
+  const lastKey = useRef(0);
+  // Take the value from the URL when it changes from elsewhere (back button, "Clear filters"), but not as an echo of what
+  // was just typed: the URL catches up a moment later and would otherwise erase the letters typed since.
+  useEffect(() => {
+    if (!shouldTakeFromUrl(lastKey.current)) return;
+    setValue(initial ?? "");
+  }, [initial]);
   const change = (v) => {
+    lastKey.current = Date.now();
     setValue(v);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => onCommit(v), delay);

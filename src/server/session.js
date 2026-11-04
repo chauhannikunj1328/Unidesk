@@ -1,6 +1,8 @@
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { auth } from "./auth.js";
 import { prisma } from "./prisma.js";
+import { loadValidUser } from "./session-check.js";
 
 /**
  * The signed-in person, checked against the database on every request, so removing someone or resetting a
@@ -10,12 +12,8 @@ import { prisma } from "./prisma.js";
 export const getIdentity = cache(async () => {
   const s = await auth();
   if (!s?.userId) return null;
-  if (s.expiresAt && s.expiresAt < Date.now()) return null;
-  const user = await prisma.user.findUnique({ where: { id: s.userId } });
+  const user = await loadValidUser({ userId: s.userId, expiresAt: s.expiresAt, iat: s.issuedAt });
   if (!user) return null;
-  if (user.sessionsValidAfter && s.issuedAt && s.issuedAt * 1000 < user.sessionsValidAfter.getTime()) return null;
-  const memberships = await prisma.membership.findMany({ where: { userId: user.id } });
-  if (memberships.length > 0 && !memberships.some((m) => m.status === "ACTIVE") && memberships.some((m) => m.status === "INACTIVE")) return null;
   return { user, preferredOrgId: s.orgId ?? user.lastOrganizationId };
 });
 
@@ -51,4 +49,14 @@ export async function landingIdentity() {
   const s = await getSession();
   if (s) return { orgId: s.orgId, role: s.role };
   return (await getIdentity()) ? { orgId: null, role: null } : null;
+}
+
+/**
+ * For pages: the session, or a redirect. A cookie can still pass the middleware after a password reset or removal,
+ * so a page must never assume getSession() returned something.
+ */
+export async function requireSession() {
+  const s = await getSession();
+  if (s) return s;
+  redirect((await getIdentity()) ? "/hub/onboarding?step=1" : "/hub/sign-in");
 }

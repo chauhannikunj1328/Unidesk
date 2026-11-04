@@ -1,5 +1,7 @@
 import { withOrg } from "@/server/db";
 import { requireAccess } from "@/server/access";
+import { canSeeActivity } from "./permissions";
+import { seatUsage } from "./seats";
 import { ALL_APPS } from "./constants";
 
 /**
@@ -25,7 +27,8 @@ export async function getTeam(session) {
     activityByUser.set(e.actorId, list);
   }
 
-  const members = rows.map((r) => ({
+  const viewer = { membershipId: session.membershipId, role: session.role };
+  const everyone = rows.map((r) => ({
     id: r.id,
     userId: r.userId,
     name: r.user.name,
@@ -40,12 +43,14 @@ export async function getTeam(session) {
     joinedAt: r.joinedAt?.toISOString() ?? null,
     activity: activityByUser.get(r.userId) ?? [],
   }));
+  // Recent activity comes from the audit log. It is removed here, on the server, for people the viewer may not see it for.
+  const members = everyone.map((m) => (canSeeActivity(viewer, m) ? { ...m, activityVisible: true } : { ...m, activity: [], activityVisible: false }));
 
   // Seats: one seat per person per app they can open. Client logins are free (07-Data-and-Permissions.md).
   const seatLimit = org.seatLimit;
-  const billable = members.filter((m) => m.role !== "CLIENT" && m.status !== "inactive");
-  const appUsage = Object.fromEntries(ALL_APPS.map((a) => [a, billable.filter((m) => m.apps.includes(a)).length]));
-  const seats = { used: billable.length, limit: seatLimit, left: Math.max(seatLimit - billable.length, 0) };
+  const usage = seatUsage(members);
+  const appUsage = usage.perApp;
+  const seats = { used: usage.people, limit: seatLimit, left: Math.max(seatLimit - usage.people, 0) };
 
   const needsAttention = [];
   const invited = members.filter((m) => m.status === "invited");

@@ -10,6 +10,10 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [ta
  */
 export function Layer({ open, onClose, labelledBy, align = "center", children }) {
   const ref = useRef(null);
+  // Callers pass a new onClose function on every render. Keep the latest in a ref so the focus trap below only runs
+  // when the layer opens or closes, not on every parent render (which would pull focus back to the first control).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -19,7 +23,7 @@ export function Layer({ open, onClose, labelledBy, align = "center", children })
     function onKey(e) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose?.();
+        onCloseRef.current?.();
       } else if (e.key === "Tab" && node) {
         const items = [...node.querySelectorAll(FOCUSABLE)];
         if (items.length === 0) return;
@@ -37,7 +41,7 @@ export function Layer({ open, onClose, labelledBy, align = "center", children })
       document.body.style.overflow = overflow;
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
   return createPortal(

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { getSession } from "@/server/session";
+import { requireSession } from "@/server/session";
 import { getTheme } from "@/lib/theme";
 import { getTeam } from "@/features/team/queries";
 import { canSeeAccessTab } from "@/features/team/permissions";
@@ -12,7 +12,7 @@ export const metadata = { title: "App access · Unidesk" };
 
 /** Team > App access. Pastel: the matrix. Grove: toggle table. Glass: folded into each person's panel, so it redirects there. */
 export default async function TeamAccessPage() {
-  const [session, theme] = await Promise.all([getSession(), getTheme()]);
+  const [session, theme] = await Promise.all([requireSession(), getTheme()]);
   const viewer = { membershipId: session.membershipId, role: session.role };
   if (!canSeeAccessTab(viewer)) notFound();
   const data = await getTeam(session);

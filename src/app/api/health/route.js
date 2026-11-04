@@ -1,10 +1,6 @@
-import { prisma } from "@/server/prisma";
+import { databaseIsUp } from "@/server/health";
 
 export async function GET() {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return Response.json({ ok: true });
-  } catch {
-    return Response.json({ ok: false }, { status: 503 });
-  }
+  const ok = await databaseIsUp();
+  return Response.json({ ok }, { status: ok ? 200 : 503 });
 }

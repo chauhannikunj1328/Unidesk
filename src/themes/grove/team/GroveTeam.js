@@ -45,7 +45,7 @@ export function GroveTeam({ data, viewer }) {
   const [view, setView] = useState("cards");
   const statuses = statusCounts(members);
   const filtered = useMemo(() => filterMembers(members, { role: params.role, status: params.status, q: params.q }), [members, params.role, params.status, params.q]);
-  const open = members.find((m) => m.id === params.id);
+  const open = members.find((m) => m.id === params.id && canOpenMember(viewer, m));
   const pct = Math.round((seats.used / Math.max(seats.limit, 1)) * 100);
   const usage = Object.entries(appUsage).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const maxUse = Math.max(...usage.map(([, n]) => n), 1);

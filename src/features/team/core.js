@@ -4,6 +4,7 @@ import { writeAudit } from "@/server/audit";
 import { CLIENT_APPS, appByCode } from "@/lib/apps";
 import { POWER_RANK, ROLES } from "./constants";
 import { descendantIds } from "./filters";
+import { seatUsage } from "./seats";
 import { roleLabel } from "@/lib/labels";
 
 /**
@@ -41,8 +42,8 @@ export async function changeAppAccess(session, { membershipId, app, enabled }) {
 
   if (enabled && target.role !== "CLIENT") {
     const org = await db.organization.get();
-    const holders = await db.appAccess.findMany({ where: { app }, include: { membership: true } });
-    const used = holders.filter((h) => h.membership.role !== "CLIENT" && h.membership.status !== "INACTIVE").length;
+    const everyone = await db.membership.findMany({ include: { appAccess: true } });
+    const used = seatUsage(everyone.map((m) => ({ role: m.role, status: m.status, apps: m.appAccess.map((a) => a.app) }))).perApp[app];
     if (used >= org.seatLimit) return fail(`No free seat on ${appInfo.label}.`);
   }
 

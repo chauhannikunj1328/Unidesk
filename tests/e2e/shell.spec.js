@@ -1,11 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { OWNER, clearAttempts, signIn } from "./helpers.js";
+import { OWNER, clearAttempts, prisma, setTheme, signIn } from "./helpers.js";
 
 /** Needs the seed loaded (`npm run db:seed`). Signs in as the seeded owner. */
-
-async function setTheme(page, theme) {
-  await page.context().addCookies([{ name: "theme", value: theme, url: "http://localhost:3000" }]);
-}
 
 test.describe("Team looks and works differently in each theme", () => {
   test.beforeEach(async ({ page }) => { await clearAttempts(); await signIn(page, OWNER); await expect(page).toHaveURL(/\/hub$/); });
@@ -56,3 +52,19 @@ test("an access change saves, writes an audit event, and can be undone (all them
     await expect(cell).toHaveAttribute("aria-checked", before);
   }
 });
+
+/** A Member must not read another person's details or audit activity, not even by editing the URL. */
+for (const theme of ["glass", "pastel", "grove"]) {
+  test(`${theme}: a member cannot open another person or read their activity`, async ({ page }) => {
+    await clearAttempts();
+    await setTheme(page, theme);
+    const maya = await prisma.user.findUnique({ where: { email: "maya@unideskdemo.com" }, include: { memberships: true } });
+    await signIn(page, { email: "sumit@unideskdemo.com", password: OWNER.password });
+    await expect(page).toHaveURL(/\/hub$/);
+    await page.goto(`/hub/team?id=${maya.memberships[0].id}`);
+    await expect(page.getByRole("heading", { name: "Team", exact: false }).first()).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("Created invoice INV-1"); // Maya's audit activity
+    await expect(page.getByRole("dialog")).toHaveCount(0); // no drawer for someone else
+    if (theme === "glass") await expect(page.getByRole("heading", { name: "Sumit Okafor" })).toBeVisible(); // falls back to their own panel
+  });
+}

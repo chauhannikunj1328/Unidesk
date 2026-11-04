@@ -42,7 +42,7 @@ export function GlassTeam({ data, viewer }) {
   const canBulk = ["OWNER", "ADMIN"].includes(viewer.role);
 
   const filtered = useMemo(() => filterMembers(members, { role: params.role, status: params.status, group: params.group, q: params.q }), [members, params.role, params.status, params.group, params.q]);
-  const current = members.find((m) => m.id === params.id) ?? filtered.find((m) => canOpenMember(viewer, m)) ?? null;
+  const current = members.find((m) => m.id === params.id && canOpenMember(viewer, m)) ?? filtered.find((m) => canOpenMember(viewer, m)) ?? null;
   const chip = activeChip(params);
 
   return (

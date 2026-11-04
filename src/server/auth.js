@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "./prisma.js";
 import { afterSignIn, confirmEmail, verifyCredentials } from "./auth-flow.js";
 import { getIpHash } from "./request.js";
+import { loadValidUser } from "./session-check.js";
 import { signInSchema } from "@/lib/validators/auth";
 
 export const THIRTY_DAYS = 30 * 24 * 3600 * 1000;
@@ -56,8 +57,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         await afterSignIn(user.id);
         const u = await prisma.user.findUnique({ where: { id: user.id } });
         Object.assign(token, await membershipFor(user.id, u?.lastOrganizationId));
+      } else if (!(await loadValidUser(token))) {
+        // Auth.js calls this on every session request, including GET /api/auth/session, and re-signs the cookie.
+        // Refusing here means a cookie that is idle, expired, from before a password reset, or for a removed person
+        // cannot be refreshed back to life. Returning null ends the session.
+        return null;
       }
-      // 30 days with activity, or 12 hours without "Keep me signed in". Moves forward on each use.
+      // 30 days with activity, or 12 hours without "Keep me signed in". Only a still-valid token moves forward.
       token.expiresAt = Date.now() + (token.keep ? THIRTY_DAYS : TWELVE_HOURS);
       return token;
     },

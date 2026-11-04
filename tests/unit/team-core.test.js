@@ -16,7 +16,7 @@ async function person(org, key, role, apps = [], reportsToId = null) {
 const session = (org, p, role, apps = []) => ({ userId: p.user.id, name: p.user.name, orgId: org.id, role, membershipId: p.m.id, apps });
 
 beforeAll(async () => {
-  A = await prisma.organization.create({ data: { name: `Test A ${stamp}`, seatLimit: 3 } });
+  A = await prisma.organization.create({ data: { name: `Test A ${stamp}`, seatLimit: 4 } });
   B = await prisma.organization.create({ data: { name: `Test B ${stamp}` } });
   const owner = await person(A, "owner", "OWNER");
   const admin = await person(A, "admin", "ADMIN", ["CRM"], owner.m.id);
@@ -70,7 +70,7 @@ describe("app access", () => {
   });
 
   it("blocks a change that needs a seat that is not free", async () => {
-    // seatLimit is 3 and CRM already has admin + mgr; one more fits, the next does not.
+    // seatLimit is 4. The owner counts for every app even without rows, so CRM already holds owner + admin + mgr; one more fits, the next does not.
     expect((await changeAppAccess(sess.owner, { membershipId: ids.mine.m.id, app: "CRM", enabled: true })).ok).toBe(true);
     const r = await changeAppAccess(sess.owner, { membershipId: ids.other.m.id, app: "CRM", enabled: true });
     expect(r.ok).toBe(false);

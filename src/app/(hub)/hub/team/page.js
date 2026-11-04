@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getSession } from "@/server/session";
+import { requireSession } from "@/server/session";
 import { getTheme } from "@/lib/theme";
 import { getTeam } from "@/features/team/queries";
 import { canSeeAccessTab } from "@/features/team/permissions";
@@ -14,7 +14,7 @@ const SCREENS = { glass: GlassTeam, pastel: PastelTeam, grove: GroveTeam };
 
 /** Team > People. One set of data; each theme decides how to show it (12-Theme-Pattern-Language.md). */
 export default async function TeamPage() {
-  const [session, theme] = await Promise.all([getSession(), getTheme()]);
+  const [session, theme] = await Promise.all([requireSession(), getTheme()]);
   const data = await getTeam(session);
   const viewer = { membershipId: session.membershipId, role: session.role };
   const Screen = SCREENS[theme];

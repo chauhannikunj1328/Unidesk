@@ -6,7 +6,7 @@ import { signIn, signOut } from "@/server/auth";
 import { setPendingEmail, getPendingEmail } from "@/server/pending";
 import { getIpHash } from "@/server/request";
 import { allowPublicForm } from "@/server/rate-limit";
-import { identityByEmail, identityForVerifyToken, registerUser, requestPasswordReset, resendVerification, resendWaitSeconds, resetPassword } from "@/server/auth-flow";
+import { RESEND_COOLDOWN_SECONDS, identityByEmail, identityForVerifyToken, registerUser, requestPasswordReset, resendVerification, resetPassword } from "@/server/auth-flow";
 import { fieldErrors, forgotSchema, resetSchema, signInSchema, signUpSchema, emailSchema } from "@/lib/validators/auth";
 import { landingFor } from "@/lib/landing";
 
@@ -72,7 +72,8 @@ export async function resendVerificationAction(_prev, formData) {
   if (!parsed.success) return { error: "Enter your work email to get a new link.", stamp: Date.now() };
   if (await allowPublicForm("resend", await getIpHash())) await resendVerification(parsed.data);
   await setPending(parsed.data);
-  return { sent: true, wait: await resendWaitSeconds(parsed.data), stamp: Date.now() };
+  // Always the same answer and the same countdown, whether or not an email went out, so it cannot be used to probe accounts.
+  return { sent: true, wait: RESEND_COOLDOWN_SECONDS, stamp: Date.now() };
 }
 
 export async function forgotPasswordAction(_prev, formData) {

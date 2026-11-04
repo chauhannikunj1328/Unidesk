@@ -26,7 +26,7 @@ export function PastelTeam({ data, viewer }) {
   const counts = roleCounts(members);
   const statuses = statusCounts(members);
   const filtered = useMemo(() => filterMembers(members, { role: params.role, status: params.status, q: params.q, manager: params.manager }), [members, params.role, params.status, params.q, params.manager]);
-  const open = members.find((m) => m.id === params.id);
+  const open = members.find((m) => m.id === params.id && canOpenMember(viewer, m));
   const managers = members.filter((m) => members.some((x) => x.reportsToId === m.id));
 
   const tiles = [{ key: null, label: "All people", n: counts.all }, ...ROLES.map((r) => ({ key: r.toLowerCase(), label: roleLabel(r), n: counts[r] ?? 0, role: r }))];

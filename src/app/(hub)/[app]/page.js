@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Construction } from "lucide-react";
 import { APP_LIST } from "@/lib/apps";
-import { getSession } from "@/server/session";
+import { requireSession } from "@/server/session";
 import { getTheme } from "@/lib/theme";
 import { ThemePageHeader } from "@/components/shell/ThemePageHeader";
 import { Card } from "@/components/ui/Card";
@@ -18,7 +18,7 @@ export default async function AppPlaceholderPage({ params }) {
   const { app: slug } = await params;
   const app = APP_LIST.find((a) => a.href === `/${slug}`);
   if (!app) notFound();
-  const session = await getSession();
+  const session = await requireSession();
   if (session.role !== "OWNER" && !session.apps.includes(app.code)) notFound();
   await getTheme();
   return (

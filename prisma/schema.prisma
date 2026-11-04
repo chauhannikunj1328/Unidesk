@@ -136,6 +136,11 @@ model Membership {
   status         MembershipStatus @default(ACTIVE)
   reportsToId    String?
   invitedById    String?
+  // A removed person must not leave dangling manager or inviter references behind.
+  reportsTo      Membership?      @relation("MembershipReports", fields: [reportsToId], references: [id], onDelete: SetNull)
+  reports        Membership[]     @relation("MembershipReports")
+  invitedBy      Membership?      @relation("MembershipInvited", fields: [invitedById], references: [id], onDelete: SetNull)
+  invited        Membership[]     @relation("MembershipInvited")
   joinedAt       DateTime?
   invitedAt      DateTime?
   lastActiveAt   DateTime?
