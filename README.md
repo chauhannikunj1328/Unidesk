@@ -28,6 +28,8 @@ npm run dev                 # http://localhost:3000
 
 ## Status
 
+Full handoff (how to resume, what is and is not built, open decisions, next steps): `docs/HANDOFF.md`.
+
 **Phase 0 (foundations):** done except CI and staging, and some components (date picker, combobox, money and email inputs, file drop, charts).
 
 **Hub flow 01 (sign in and sign up):** done in all three theme structures: sign in, sign up, check your inbox, forgot and reset password, sign out, route protection, real sessions. Placeholders: `/hub/onboarding` (flow 02), `/portal`, `/terms`, `/privacy`. Not included: Google sign-in, new-device email.
