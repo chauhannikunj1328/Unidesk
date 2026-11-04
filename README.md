@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Unidesk
 
-## Getting Started
+Multi-tenant business platform: a Hub plus seven apps. Next.js 15 (App Router, JavaScript), PostgreSQL, Prisma, Auth.js, Zod, Tailwind.
 
-First, run the development server:
+Specs live next to this folder: `../Unidesk Platform Specs` and `../Build Docs`. Rules for Claude Code are in `CLAUDE.md`.
+
+## Run it
+
+Needs Node 20+ and a local PostgreSQL.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+createdb unidesk_dev
+cp .env.example .env        # then set DATABASE_URL and AUTH_SECRET
+npm run setup               # install, generate client, migrate, seed
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Commands
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the app |
+| `npm test` | Unit and isolation tests (Vitest). Needs the seed loaded |
+| `npm run test:e2e` | Browser tests (Playwright). Run `npx playwright install chromium` once |
+| `npm run lint` | ESLint |
+| `npm run db:migrate` | Create a migration |
+| `npm run db:seed` | Load demo data (two organizations) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Status
 
-## Learn More
+**Phase 0 (foundations):** done except CI and staging, and some components (date picker, combobox, money and email inputs, file drop, charts).
 
-To learn more about Next.js, take a look at the following resources:
+**Hub flow 01 (sign in and sign up):** done in all three theme structures: sign in, sign up, check your inbox, forgot and reset password, sign out, route protection, real sessions. Placeholders: `/hub/onboarding` (flow 02), `/portal`, `/terms`, `/privacy`. Not included: Google sign-in, new-device email.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Team pilot:** People and App access in all three themes (see `../Unidesk Platform Specs/00-Foundations/12-Theme-Pattern-Language.md`). Shared logic in `src/features/team`; screens in `src/themes/<theme>`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Try it
 
-## Deploy on Vercel
+Demo owner: `demo@unidesk.com`, password in `prisma/seed.mjs` (demo data only). Every seeded person has the same demo password; Jordan Lee is a Client, Lena Fischer is invited.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+In development: the theme control sits at the bottom right, and `/dev/emails` lists every email the app "sent" (confirmation and reset links). Browser tests run in your installed Google Chrome (`npm run test:e2e`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Not built yet (hidden, not dead links): invite, invites list, roles page, shared data, deactivate and remove, settings, onboarding.

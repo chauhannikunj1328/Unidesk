@@ -1,0 +1,48 @@
+"use client";
+import { Ellipsis, UserCog } from "lucide-react";
+import { Avatar } from "@/components/ui/Avatar";
+import { DataTable } from "@/components/ui/DataTable";
+import { IconButton } from "@/components/ui/IconButton";
+import { Menu } from "@/components/ui/Menu";
+import { StatusChip } from "@/components/ui/StatusChip";
+import { useTheme } from "@/components/shell/ThemeProvider";
+import { formatRelative, daysAgo } from "@/lib/dates";
+import { canEditMember, canOpenMember } from "../permissions";
+import { AppChips, RoleChip } from "./bits";
+
+/** Pastel shows status as a black pill with a dot (Invited: dashed outline); other themes use the shared StatusChip. */
+function Status({ member, timezone }) {
+  const theme = useTheme();
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {theme === "pastel" ? (
+        member.status === "active" ? <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary px-3 text-[13px] font-medium text-on-primary"><span aria-hidden className="size-1.5 rounded-full" style={{ background: "var(--highlight)" }} />Active</span>
+        : member.status === "invited" ? <span className="inline-flex h-7 items-center rounded-full border border-dashed border-muted px-3 text-[13px] text-muted">Invited</span>
+        : <StatusChip status={member.status} />
+      ) : <StatusChip status={member.status} />}
+      {member.status === "invited" && member.invitedAt ? <span className="text-xs text-muted">Sent {daysAgo(member.invitedAt, new Date(), timezone)}</span> : null}
+    </div>
+  );
+}
+
+/** Members table (04-team-people-list.md). Same columns and menu in every theme that shows a table. */
+export function PeopleTable({ members, viewer, timezone, onOpen, empty }) {
+  const columns = [
+    { key: "name", header: "Member", render: (m) => (
+      <span className="flex items-center gap-3"><Avatar name={m.name} size={36} /><span className="min-w-0"><span className="block truncate font-medium text-ink">{m.name}</span><span className="block truncate text-sm font-normal text-muted">{m.email}</span></span></span>
+    ) },
+    { key: "role", header: "Role", render: (m) => <RoleChip role={m.role} /> },
+    { key: "reportsTo", header: "Reports to", render: (m) => (m.role === "OWNER" ? <span className="text-muted">Workspace owner</span> : m.reportsToName ?? <span className="text-muted">—</span>) },
+    { key: "apps", header: "App access", render: (m) => <AppChips apps={m.apps} role={m.role} /> },
+    { key: "status", header: "Status", render: (m) => <Status member={m} timezone={timezone} /> },
+    { key: "last", header: "Last active", render: (m) => <span className="text-muted">{m.status === "invited" ? "" : formatRelative(m.lastActiveAt, new Date(), timezone)}</span> },
+    { key: "actions", header: <span className="sr-only">Actions</span>, align: "right", render: (m) => (
+      canEditMember(viewer, m) ? (
+        <span onClick={(e) => e.stopPropagation()}>
+          <Menu items={[{ label: "Edit access", icon: UserCog, onSelect: () => onOpen(m) }]} trigger={({ toggle }) => <IconButton icon={Ellipsis} label={`Actions for ${m.name}`} variant="outline" size={32} onClick={toggle} />} />
+        </span>
+      ) : null
+    ) },
+  ];
+  return <DataTable columns={columns} rows={members} onRowClick={onOpen} rowClickable={(m) => canOpenMember(viewer, m)} empty={empty} />;
+}

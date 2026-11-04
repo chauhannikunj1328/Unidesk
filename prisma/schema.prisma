@@ -1,0 +1,220 @@
+// Unidesk data model, foundations slice (Hub core).
+// Every table except User and Organization carries organizationId.
+// Money is whole cents (Int). Dates are UTC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  MEMBER
+  CLIENT
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
+}
+
+enum App {
+  PROPOSALS
+  APPOINTMENT
+  CRM
+  WORKDRIVE
+  SOP
+  INVOICING
+  ACCOUNTING
+}
+
+enum Theme {
+  glass
+  pastel
+  grove
+}
+
+model Organization {
+  id            String   @id @default(cuid())
+  name          String
+  plan          String   @default("free")
+  trialEndsAt   DateTime?
+  timezone      String   @default("America/New_York")
+  currency      String   @default("USD")
+  defaultTheme  Theme    @default(glass)
+  seatLimit     Int      @default(10)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships Membership[]
+  appAccess   AppAccess[]
+  clients     Client[]
+  projects    Project[]
+  auditEvents AuditEvent[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  avatarUrl    String?
+  theme        Theme?
+  timezone     String?
+  emailVerifiedAt     DateTime?
+  termsAcceptedAt     DateTime?
+  lastOrganizationId  String?
+  signupReferralCode  String?
+  // Sessions issued before this moment are no longer valid (password reset, deactivation).
+  sessionsValidAfter  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  emailTokens EmailToken[]
+}
+
+enum EmailTokenKind {
+  VERIFY
+  RESET
+}
+
+// Single-use links. Only the SHA-256 hash is stored, never the token itself.
+model EmailToken {
+  id        String         @id @default(cuid())
+  userId    String
+  kind      EmailTokenKind
+  tokenHash String         @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, createdAt])
+}
+
+// Failed and successful sign-ins, for rate limiting. Email is lower-cased; the network address is stored only as a keyed hash.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipHash    String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+// Every email the app sends, so there is a "sent emails" view and development needs no mail provider.
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  template  String
+  body      String
+  link      String?
+  status    String   @default("sent")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Membership {
+  id             String           @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role
+  status         MembershipStatus @default(ACTIVE)
+  reportsToId    String?
+  invitedById    String?
+  joinedAt       DateTime?
+  invitedAt      DateTime?
+  lastActiveAt   DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appAccess    AppAccess[]
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, createdAt])
+}
+
+model AppAccess {
+  id             String   @id @default(cuid())
+  organizationId String
+  membershipId   String
+  app            App
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership   Membership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, app])
+  @@index([organizationId, createdAt])
+}
+
+model Client {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  type           String?
+  email          String?
+  phone          String?
+  address        String?
+  ownerId        String?
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projects     Project[]
+
+  @@index([organizationId, createdAt])
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  name           String
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, clientId])
+}
+
+// Append-only. No update or delete anywhere in the code base.
+model AuditEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorId        String?
+  app            String   @default("hub")
+  action         String
+  entityType     String?
+  entityId       String?
+  summary        String
+  meta           Json?
+  ipHash         String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
