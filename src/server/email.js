@@ -39,3 +39,17 @@ export const inviteEmail = ({ inviter, org, role, apps, note, link, expires, rem
     `\nThis invite works until ${expires}. If you weren't expecting it, you can ignore this email.`,
   ].filter(Boolean).join("\n"),
 });
+
+export const removedEmail = ({ name, org, by }) => ({
+  template: "team-removed",
+  subject: `You were removed from ${org}`,
+  text: `Hi ${name},\n\n${by} removed you from ${org} on Unidesk. You can no longer sign in to that workspace. Your past work stays in its history under your name.\n\nIf this is a surprise, ask ${by} or another admin of ${org}.`,
+});
+
+export const ownershipEmail = ({ name, org, from, to, role }) => ({
+  template: "team-ownership",
+  subject: role === "new" ? `You are now the owner of ${org}` : `Ownership of ${org} moved to ${to}`,
+  text: role === "new"
+    ? `Hi ${name},\n\n${from} handed ownership of ${org} to you. You can now change billing and delete the organization.`
+    : `Hi ${name},\n\nYou handed ownership of ${org} to ${to}. You are now an Admin. Only the owner can change billing and delete the organization.`,
+});

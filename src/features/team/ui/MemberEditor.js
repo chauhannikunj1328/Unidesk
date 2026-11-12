@@ -17,6 +17,7 @@ import { descendantIds } from "../filters";
 import { canEditMember, canEditRoles } from "../permissions";
 import { setAppAccessAction, setManagerAction, setRoleAction } from "../actions";
 import { resendInviteAction } from "../invite-actions";
+import { useMemberActions } from "./member-actions";
 
 /**
  * Role, Reports to, App access and Recent activity for one person, with auto-save (06-team-member-detail.md).
@@ -40,6 +41,7 @@ export function MemberEditor({ member, members, viewer, timezone, onDone, sectio
   const blocked = useMemo(() => descendantIds(members, member.id), [members, member.id]);
   const managerOptions = members.filter((m) => m.id !== member.id && !blocked.has(m.id) && m.role !== "CLIENT" && m.status !== "inactive");
 
+  const actions = useMemberActions();
   const [resending, setResending] = useState(false);
   async function resend() {
     setResending(true);
@@ -182,8 +184,12 @@ export function MemberEditor({ member, members, viewer, timezone, onDone, sectio
         </section>
       ) : null}
 
-      <div className="flex items-center justify-end gap-4 border-t border-line pt-4">
-        <span className="text-sm text-muted" aria-live="polite">{saving || !saved ? "Saving…" : "All changes saved"}</span>
+      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+        {actions?.can("deactivate", member) ? <Button variant="danger" onClick={() => actions.ask("deactivate", member)}>Deactivate</Button> : null}
+        {actions?.can("reactivate", member) ? <Button variant="primary" onClick={() => actions.ask("reactivate", member)}>Reactivate</Button> : null}
+        {actions?.can("remove", member) ? <button type="button" onClick={() => actions.ask("remove", member)} className="px-1 text-sm font-medium text-danger underline-offset-2 hover:underline">Remove from workspace</button> : null}
+        {actions?.can("owner", member) ? <button type="button" onClick={() => actions.ask("owner", member)} className="px-1 text-sm font-medium text-ink underline-offset-2 hover:underline">Make owner…</button> : null}
+        <span className="ml-auto text-sm text-muted" aria-live="polite">{saving || !saved ? "Saving…" : "All changes saved"}</span>
         {onDone ? <Button variant="primary" onClick={onDone}>Done</Button> : null}
       </div>
 

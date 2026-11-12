@@ -57,7 +57,7 @@ export async function createInvites(session, input) {
   // A manager's invitees always report to that manager.
   const reportsToId = session.role === "MANAGER" ? session.membershipId : input.reportsToId || session.membershipId;
   const boss = everyone.find((m) => m.id === reportsToId);
-  if (!boss || boss.role === "CLIENT" || boss.status === "INACTIVE") return fail("Choose someone from this workspace to report to.");
+  if (!boss || boss.role === "CLIENT" || ["INACTIVE", "REMOVED"].includes(boss.status)) return fail("Choose someone from this workspace to report to.");
 
   let clientId = null;
   if (role === "CLIENT" && input.clientId) {
@@ -69,7 +69,8 @@ export async function createInvites(session, input) {
   // People who are already in the organization are left out, not an error: the drawer already marked them.
   const users = await prisma.user.findMany({ where: { email: { in: input.emails.map((e) => e.toLowerCase()) } }, include: { memberships: { where: { organizationId: session.orgId } } } });
   const existing = new Map();
-  for (const u of users) for (const m of u.memberships) existing.set(u.email, m.status.toLowerCase());
+  // A removed person is not "in the team" any more: they can be invited again.
+  for (const u of users) for (const m of u.memberships) if (m.status !== "REMOVED") existing.set(u.email, m.status.toLowerCase());
   const seen = new Set();
   const skipped = [];
   const emails = [];
@@ -105,9 +106,17 @@ export async function createInvites(session, input) {
           let user = await tx.user.findUnique({ where: { email } });
           const createdUser = !user;
           if (!user) user = await tx.user.create({ data: { email, name: nameFromEmail(email) } });
-          const membership = await tdb.membership.create({
-            data: { userId: user.id, role, status: "INVITED", reportsToId, invitedById: session.membershipId, invitedAt: now, clientId },
-          });
+          const fields = { role, status: "INVITED", reportsToId, invitedById: session.membershipId, invitedAt: now, clientId, removedAt: null, joinedAt: null };
+          // Someone who was removed earlier comes back on their old membership, so their name stays on past records.
+          const earlier = await tdb.membership.findFirst({ where: { userId: user.id, status: "REMOVED" } });
+          let membership;
+          if (earlier) {
+            await tdb.appAccess.deleteMany({ where: { membershipId: earlier.id } });
+            await tdb.membership.updateMany({ where: { id: earlier.id }, data: fields });
+            membership = earlier;
+          } else {
+            membership = await tdb.membership.create({ data: { userId: user.id, ...fields } });
+          }
           for (const app of apps) await tdb.appAccess.create({ data: { membershipId: membership.id, app } });
           await tdb.invite.create({
             data: {

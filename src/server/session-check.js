@@ -14,6 +14,6 @@ export async function loadValidUser(token, now = Date.now()) {
   if (!user) return null;
   if (user.sessionsValidAfter && (token.iat ?? 0) * 1000 < user.sessionsValidAfter.getTime()) return null;
   const memberships = await prisma.membership.findMany({ where: { userId: user.id }, select: { status: true } });
-  if (memberships.length > 0 && !memberships.some((m) => m.status === "ACTIVE") && memberships.some((m) => m.status === "INACTIVE")) return null;
+  if (memberships.length > 0 && !memberships.some((m) => m.status === "ACTIVE") && memberships.some((m) => ["INACTIVE", "REMOVED"].includes(m.status))) return null;
   return user;
 }

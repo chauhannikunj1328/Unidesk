@@ -15,10 +15,11 @@ export async function getTeam(session) {
   requireAccess(session, { roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT", "MEMBER"] }); // clients never read the team
   const db = withOrg(session);
   if (canInvite(session.role)) await flushDueInvites(session); // emails whose Undo time has passed
-  const [rows, org, clients, pendingInvites] = await Promise.all([
-    db.membership.findMany({ include: { user: true, appAccess: true }, orderBy: { createdAt: "asc" } }),
+  const [rows, org, clients, ownedRows, pendingInvites] = await Promise.all([
+    db.membership.findMany({ where: { status: { not: "REMOVED" } }, include: { user: true, appAccess: true }, orderBy: { createdAt: "asc" } }),
     db.organization.get(),
     canInvite(session.role) ? db.client.findMany({ where: { archived: false }, orderBy: { name: "asc" } }) : [],
+    ["OWNER", "ADMIN"].includes(session.role) ? db.client.findMany({ where: { ownerId: { not: null } }, orderBy: { name: "asc" } }) : [],
     pendingInviteCount(session), // the same query the Invites tab uses, so the count always agrees
   ]);
 
@@ -47,6 +48,8 @@ export async function getTeam(session) {
     invitedAt: r.invitedAt?.toISOString() ?? null,
     joinedAt: r.joinedAt?.toISOString() ?? null,
     activity: activityByUser.get(r.userId) ?? [],
+    // For the hand-over step when removing someone. Only owners and admins can act on it, so only they receive it.
+    ownedClients: ownedRows.filter((c) => c.ownerId === r.id).map((c) => ({ id: c.id, name: c.name })),
   }));
   // Recent activity comes from the audit log. It is removed here, on the server, for people the viewer may not see it for.
   const members = everyone.map((m) => (canSeeActivity(viewer, m) ? { ...m, activityVisible: true } : { ...m, activity: [], activityVisible: false }));

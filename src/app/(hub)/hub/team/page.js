@@ -5,6 +5,7 @@ import { getTeam } from "@/features/team/queries";
 import { canSeeAccessTab } from "@/features/team/permissions";
 import { InviteButton, InviteHost } from "@/features/team/ui/InviteDrawer";
 import { greetingFor } from "@/lib/dates";
+import { MemberActionsProvider } from "@/features/team/ui/member-actions";
 import { RolesDrawerHost, RolesPill } from "@/features/team/ui/RolesDrawer";
 import { roleHeadcount } from "@/features/team/roles-rules";
 import { teamTabs } from "@/features/team/ui/tabs";
@@ -43,7 +44,9 @@ export default async function TeamPage() {
         timezone={data.timezone}
       />
       <Suspense fallback={null}>
-        <Screen data={data} viewer={viewer} />
+        <MemberActionsProvider members={data.members} viewer={viewer}>
+          <Screen data={data} viewer={viewer} />
+        </MemberActionsProvider>
         <InviteHost data={data} viewer={viewer} />
         {theme === "pastel" ? <RolesDrawerHost counts={roleHeadcount(data.members)} yourRole={session.role} /> : null}
       </Suspense>

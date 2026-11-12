@@ -1,5 +1,5 @@
 "use client";
-import { Ellipsis, Send, UserCog } from "lucide-react";
+import { Ban, Crown, Ellipsis, RotateCcw, Send, Trash2, UserCog } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable } from "@/components/ui/DataTable";
 import { IconButton } from "@/components/ui/IconButton";
@@ -8,6 +8,7 @@ import { StatusChip } from "@/components/ui/StatusChip";
 import { useTheme } from "@/components/shell/ThemeProvider";
 import { useToast } from "@/components/ui/Toast";
 import { resendInviteAction } from "../invite-actions";
+import { useMemberActions } from "./member-actions";
 import { formatRelative, daysAgo } from "@/lib/dates";
 import { canEditMember, canOpenMember } from "../permissions";
 import { AppChips, RoleChip } from "./bits";
@@ -30,6 +31,7 @@ function Status({ member, timezone }) {
 /** Members table (04-team-people-list.md). Same columns and menu in every theme that shows a table. */
 export function PeopleTable({ members, viewer, timezone, onOpen, empty }) {
   const toast = useToast();
+  const actions = useMemberActions();
   async function resend(m) {
     const r = await resendInviteAction({ membershipId: m.id });
     toast(r.ok ? { kind: "success", message: `Invite sent again to ${r.email}` } : { kind: "error", message: r.error });
@@ -46,7 +48,15 @@ export function PeopleTable({ members, viewer, timezone, onOpen, empty }) {
     { key: "actions", header: <span className="sr-only">Actions</span>, align: "right", render: (m) => (
       canEditMember(viewer, m) ? (
         <span onClick={(e) => e.stopPropagation()}>
-          <Menu items={[{ label: "Edit access", icon: UserCog, onSelect: () => onOpen(m) }, ...(m.status === "invited" ? [{ label: "Resend invite", icon: Send, onSelect: () => resend(m) }] : [])]} trigger={({ toggle }) => <IconButton icon={Ellipsis} label={`Actions for ${m.name}`} variant="outline" size={32} onClick={toggle} />} />
+          <Menu items={[
+            { label: "Edit access", icon: UserCog, onSelect: () => onOpen(m) },
+            ...(m.status === "invited" ? [{ label: "Resend invite", icon: Send, onSelect: () => resend(m) }] : []),
+            ...(actions?.can("reactivate", m) ? [{ label: "Reactivate", icon: RotateCcw, onSelect: () => actions.ask("reactivate", m) }] : []),
+            ...(actions?.can("owner", m) ? [{ label: "Make owner…", icon: Crown, onSelect: () => actions.ask("owner", m) }] : []),
+            ...(actions?.can("deactivate", m) || actions?.can("remove", m) ? [{ separator: true }] : []),
+            ...(actions?.can("deactivate", m) ? [{ label: "Deactivate", icon: Ban, danger: true, onSelect: () => actions.ask("deactivate", m) }] : []),
+            ...(actions?.can("remove", m) ? [{ label: "Remove from workspace", icon: Trash2, danger: true, onSelect: () => actions.ask("remove", m) }] : []),
+          ]} trigger={({ toggle }) => <IconButton icon={Ellipsis} label={`Actions for ${m.name}`} variant="outline" size={32} onClick={toggle} />} />
         </span>
       ) : null
     ) },

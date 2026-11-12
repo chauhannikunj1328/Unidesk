@@ -7,7 +7,7 @@ import { ALL_APPS } from "./constants";
  * @param {{ role: string, status: string, apps: string[] }[]} people  status in any case
  */
 export function seatUsage(people) {
-  const billable = people.filter((p) => p.role !== "CLIENT" && p.status.toLowerCase() !== "inactive");
+  const billable = people.filter((p) => p.role !== "CLIENT" && !["inactive", "removed"].includes(p.status.toLowerCase()));
   const perApp = Object.fromEntries(
     ALL_APPS.map((a) => [a, billable.filter((p) => p.role === "OWNER" || p.apps.includes(a)).length])
   );

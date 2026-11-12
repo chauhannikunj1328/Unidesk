@@ -100,3 +100,12 @@ npm run dev              # http://localhost:3000
 ## Roles and permissions page (12 Nov 2026)
 - `/hub/team/roles` (tab "Roles 6" in glass and grove; pastel opens it as a drawer from the "Roles & permissions" pill, `?roles=1`). Read-only. The rows live in `roles-rules.js`; `tests/unit/roles-rules.test.js` fails if the page says something the permission helpers do not enforce, so update both together.
 - Decision: the invite drawer keeps the Client role (the Figma Team frame shows four roles).
+
+## Flow 10, Deactivate, remove, transfer ownership (12 Nov 2026)
+- `MembershipStatus` now has REMOVED. Deactivated (INACTIVE) people stay listed and can be reactivated; removed people leave the list and pickers, keep their name in history, and can be invited again (the old membership is reused).
+- Logic in `features/team/lifecycle.js`; Server Actions in `lifecycle-actions.js`; dialogs in `ui/member-actions.js` (one provider on the Team page holds them; the person panel, table menu and grove cards call `useMemberActions`).
+- Remove is a two-step dialog (hand over, then type REMOVE) and all-or-nothing. Hand-over covers clients owned (`Client.ownerId` is a membership id) and direct reports. When tasks, bookings and scheduled reports exist, add their counts and reassignment to `removeMember` and the wizard.
+- Transfer ownership: `/hub/settings/ownership` (owner only, password again, same attempt lock as sign-in). The old owner becomes an Admin with every app. The action deliberately does not revalidate, because the page is owner-only.
+- Seed: Sumit Okafor owns Northwind LLC and Harbor Dental so removal shows a real hand-over.
+- `Layer` now renders only after mount, which fixes the hydration warning when a page loads with a drawer open (`?id=` links).
+- Not done: "Leave organization" (flow 24), notifications to people who receive work (no notifications table yet).

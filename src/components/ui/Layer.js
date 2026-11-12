@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -10,13 +10,17 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [ta
  */
 export function Layer({ open, onClose, labelledBy, align = "center", children }) {
   const ref = useRef(null);
+  // A layer lives in a portal, which the server cannot render. Wait for the browser, so a page that loads with a drawer
+  // already open (a shared ?id= link) does not disagree with the server HTML.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // Callers pass a new onClose function on every render. Keep the latest in a ref so the focus trap below only runs
   // when the layer opens or closes, not on every parent render (which would pull focus back to the first control).
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !mounted) return;
     const previous = document.activeElement;
     const node = ref.current;
     node?.querySelector(FOCUSABLE)?.focus();
@@ -41,9 +45,9 @@ export function Layer({ open, onClose, labelledBy, align = "center", children })
       document.body.style.overflow = overflow;
       previous?.focus?.();
     };
-  }, [open]);
+  }, [open, mounted]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!open || !mounted) return null;
   return createPortal(
     <div className={`fixed inset-0 z-50 flex ${align === "right" ? "justify-end" : "items-center justify-center p-4"}`}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />

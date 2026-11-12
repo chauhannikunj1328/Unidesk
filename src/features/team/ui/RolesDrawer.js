@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
@@ -27,6 +28,7 @@ export function RolesDrawerHost({ counts, yourRole }) {
     <Drawer open onClose={close} title="Roles & permissions" width={900}>
       <p className="mb-4 text-text">What each role can do. A person&apos;s role is set on the People page; this only shows the rules.</p>
       <RolesMatrix counts={counts} yourRole={yourRole} />
+      {yourRole === "OWNER" ? <p className="mt-4 text-sm text-muted">There is one Owner. <Link href="/hub/settings/ownership" className="font-medium text-ink underline underline-offset-2">Transfer ownership</Link></p> : null}
     </Drawer>
   );
 }

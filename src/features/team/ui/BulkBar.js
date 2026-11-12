@@ -8,6 +8,7 @@ import { APP_LIST, CLIENT_APPS } from "@/lib/apps";
 import { roleLabel } from "@/lib/labels";
 import { ROLES } from "../constants";
 import { bulkChangeAction } from "../actions";
+import { deactivateManyAction } from "../lifecycle-actions";
 
 /**
  * Appears only with a selection. Gives or removes an app, changes role or manager for everyone selected.
@@ -34,12 +35,23 @@ export function BulkBar({ selected, members, appUsage, seatLimit, onClear, tone 
     });
   }
   const askRole = (role) => setPending({ change: { type: "role", role }, title: `Change ${people.length} ${people.length === 1 ? "person's" : "people's"} role to ${roleLabel(role)}?`, consequence: "People who are Owner or already have this role are skipped." });
+  const askDeactivate = () => {
+    const eligible = people.filter((p) => p.role !== "OWNER" && p.status === "active");
+    if (eligible.length === 0) { toast({ message: "Nobody selected can be deactivated." }); return; }
+    setPending({ change: { type: "deactivate" }, title: `Deactivate ${eligible.length} ${eligible.length === 1 ? "person" : "people"}?`, consequence: "They won't be able to sign in and their seats are freed. Their work stays as it is, and you can reactivate them any time." });
+  };
   const askManager = (m) => setPending({ change: { type: "manager", reportsToId: m.id }, title: `Make ${m.name} the manager of ${people.length} ${people.length === 1 ? "person" : "people"}?`, consequence: "Anyone who would create a reporting loop is skipped." });
 
   function confirm() {
     const { change } = pending;
     setPending(null);
     startBusy(async () => {
+      if (change.type === "deactivate") {
+        const d = await deactivateManyAction({ membershipIds: selected });
+        toast({ kind: d.failed ? "info" : "success", message: d.failed ? `${d.done} deactivated, ${d.failed} skipped.` : `${d.done} ${d.done === 1 ? "person" : "people"} deactivated.` });
+        onClear();
+        return;
+      }
       const r = await bulkChangeAction({ membershipIds: selected, change });
       if (!r.ok && !r.results) { toast({ kind: "error", message: r.error }); return; }
       const changed = r.results.filter((x) => x.ok && x.changed).length;
@@ -65,6 +77,7 @@ export function BulkBar({ selected, members, appUsage, seatLimit, onClear, tone 
       <Menu align="left" trigger={trigger("Remove access")} items={APP_LIST.map((a) => ({ label: a.label, onSelect: () => askAccess(a.code, false) }))} />
       <Menu align="left" trigger={trigger("Change role")} items={ROLES.filter((r) => r !== "OWNER" && r !== "CLIENT").map((r) => ({ label: roleLabel(r), onSelect: () => askRole(r) }))} />
       <Menu align="left" trigger={trigger("Change manager")} items={managers.map((m) => ({ label: m.name, onSelect: () => askManager(m) }))} />
+      <button type="button" disabled={busy} onClick={askDeactivate} className="h-10 rounded-full bg-white/10 px-4 text-sm font-medium text-white hover:bg-white/20 disabled:opacity-50">Deactivate</button>
       <button type="button" onClick={onClear} aria-label="Clear selection" className="inline-flex size-9 items-center justify-center rounded-full bg-white text-black"><X size={16} strokeWidth={1.75} aria-hidden /></button>
       <ConfirmDialog open={!!pending} onClose={() => setPending(null)} onConfirm={confirm} title={pending?.title ?? ""} consequence={pending?.consequence ?? ""} confirmLabel="Confirm" loading={busy} />
     </div>

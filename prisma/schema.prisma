@@ -23,7 +23,10 @@ enum Role {
 enum MembershipStatus {
   INVITED
   ACTIVE
+  // Deactivated: cannot sign in, still listed, can be reactivated.
   INACTIVE
+  // Removed from the workspace: not listed, keeps their name in history, can be invited again.
+  REMOVED
 }
 
 enum App {
@@ -148,6 +151,7 @@ model Membership {
   joinedAt       DateTime?
   invitedAt      DateTime?
   lastActiveAt   DateTime?
+  removedAt      DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 

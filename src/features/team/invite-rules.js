@@ -70,7 +70,7 @@ export function classifyEmail(raw, existing) {
   if (!parsed.success) return { email: String(raw).trim().toLowerCase(), state: "invalid", message: "Check this address" };
   const email = parsed.data;
   const status = existing.get(email);
-  if (status === "inactive") return { email, state: "inactive", message: "Was removed from your team" };
+  if (status === "inactive") return { email, state: "inactive", message: "Is deactivated. Reactivate them from the team list" };
   if (status) return { email, state: "member", message: "Already in your team" };
   return { email, state: "ok" };
 }

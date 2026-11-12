@@ -92,7 +92,7 @@ export async function changeManager(session, { membershipId, reportsToId }) {
   if (!target) return fail(GONE);
   if (target.role === "OWNER") return fail("The owner reports to no one.");
   const boss = all.find((m) => m.id === reportsToId);
-  if (!boss || boss.role === "CLIENT" || boss.status === "INACTIVE") return fail("Choose someone from this workspace.");
+  if (!boss || boss.role === "CLIENT" || ["INACTIVE", "REMOVED"].includes(boss.status)) return fail("Choose someone from this workspace.");
   if (reportsToId === membershipId) return fail("A person can't report to themselves.");
   const below = descendantIds(all.map((m) => ({ id: m.id, reportsToId: m.reportsToId })), membershipId);
   if (below.has(reportsToId)) return fail(`${boss.user.name} reports to ${target.user.name}, so this would create a loop.`);

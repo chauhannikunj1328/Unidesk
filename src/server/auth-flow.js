@@ -47,7 +47,7 @@ export async function verifyCredentials(emailInput, password, ipHash) {
 
   const memberships = await prisma.membership.findMany({ where: { userId: user.id }, include: { organization: true }, orderBy: { createdAt: "desc" } });
   const hasActive = memberships.some((m) => m.status === "ACTIVE");
-  const removedFrom = memberships.find((m) => m.status === "INACTIVE");
+  const removedFrom = memberships.find((m) => ["INACTIVE", "REMOVED"].includes(m.status));
   if (memberships.length > 0 && !hasActive && removedFrom) return { ok: false, reason: "removed", orgName: removedFrom.organization.name };
 
   await recordAttempt(email, ipHash, true);

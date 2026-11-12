@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Armchair, CircleAlert, LayoutGrid, List, Mail, ShieldCheck, UserSearch } from "lucide-react";
+import { Armchair, Ban, CircleAlert, Crown, Ellipsis, LayoutGrid, List, Mail, ShieldCheck, Trash2, UserSearch } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
@@ -17,6 +17,8 @@ import { canEditMember, canOpenMember } from "@/features/team/permissions";
 import { ROLES } from "@/features/team/constants";
 import { useDebouncedQuery, useTeamParams } from "@/features/team/ui/use-team-params";
 import { AppIconRow, ResendInviteButton } from "@/features/team/ui/bits";
+import { useMemberActions } from "@/features/team/ui/member-actions";
+import { Menu } from "@/components/ui/Menu";
 import { PeopleTable } from "@/features/team/ui/PeopleTable";
 import { MemberEditor } from "@/features/team/ui/MemberEditor";
 
@@ -43,6 +45,7 @@ export function GroveTeam({ data, viewer }) {
   const { params, set } = useTeamParams();
   const [q, setQ] = useDebouncedQuery(params.q, (v) => set({ q: v }));
   const [view, setView] = useState("cards");
+  const actions = useMemberActions();
   const statuses = statusCounts(members);
   const filtered = useMemo(() => filterMembers(members, { role: params.role, status: params.status, q: params.q }), [members, params.role, params.status, params.q]);
   const open = members.find((m) => m.id === params.id && canOpenMember(viewer, m));
@@ -137,7 +140,17 @@ export function GroveTeam({ data, viewer }) {
                 <div className="flex items-center justify-between"><AppIconRow apps={m.apps} /><span className="tabular text-sm text-muted">{m.apps.length}/7</span></div>
                 <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
                   <span className="text-sm text-muted">{m.status === "invited" && m.invitedAt ? `Sent ${daysAgo(m.invitedAt, new Date(), timezone)}` : formatRelative(m.lastActiveAt, new Date(), timezone)}</span>
-                  {m.status === "invited" && canEditMember(viewer, m) ? <ResendInviteButton member={m} /> : canOpenMember(viewer, m) ? <Button size="sm" onClick={() => set({ id: m.id })}>{canEditMember(viewer, m) ? "Edit access" : "View"}</Button> : null}
+                  <span className="flex items-center gap-2">
+                    {m.status === "invited" && canEditMember(viewer, m) ? <ResendInviteButton member={m} /> : actions?.can("reactivate", m) ? <Button size="sm" variant="primary" onClick={() => actions.ask("reactivate", m)}>Reactivate</Button> : canOpenMember(viewer, m) ? <Button size="sm" onClick={() => set({ id: m.id })}>{canEditMember(viewer, m) ? "Edit access" : "View"}</Button> : null}
+                    {actions && (actions.can("deactivate", m) || actions.can("remove", m) || actions.can("owner", m)) ? (
+                      <Menu items={[
+                        ...(actions.can("owner", m) ? [{ label: "Make owner…", icon: Crown, onSelect: () => actions.ask("owner", m) }] : []),
+                        ...(actions.can("owner", m) ? [{ separator: true }] : []),
+                        ...(actions.can("deactivate", m) ? [{ label: "Deactivate", icon: Ban, danger: true, onSelect: () => actions.ask("deactivate", m) }] : []),
+                        ...(actions.can("remove", m) ? [{ label: "Remove from workspace", icon: Trash2, danger: true, onSelect: () => actions.ask("remove", m) }] : []),
+                      ]} trigger={({ toggle }) => <IconButton icon={Ellipsis} label={`More actions for ${m.name}`} variant="outline" size={32} onClick={toggle} />} />
+                    ) : null}
+                  </span>
                 </div>
               </li>
             ))}

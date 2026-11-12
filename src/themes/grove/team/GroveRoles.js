@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { roleLabel } from "@/lib/labels";
 import { ROLE_HELP } from "@/features/team/constants";
 import { ROLE_ORDER } from "@/features/team/roles-rules";
@@ -22,6 +23,7 @@ export function GroveRoles({ counts, yourRole }) {
       <section aria-label="Roles and permissions" className="bg-card p-6" style={{ borderRadius: "var(--card-radius)" }}>
         <p className="mb-4 max-w-[70ch] text-text">What each role can do. A person&apos;s role is set on the People page; this page only shows the rules.</p>
         <RolesMatrix counts={counts} yourRole={yourRole} />
+        {yourRole === "OWNER" ? <p className="mt-4 text-sm text-muted">There is one Owner. <Link href="/hub/settings/ownership" className="font-medium text-ink underline underline-offset-2">Transfer ownership</Link></p> : null}
       </section>
     </div>
   );

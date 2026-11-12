@@ -25,7 +25,7 @@ export const CAPABILITIES = [
 /** How many people hold each role (everyone who is not deactivated). */
 export function roleHeadcount(members) {
   const out = Object.fromEntries(ROLE_ORDER.map((r) => [r, 0]));
-  for (const m of members) if (m.status !== "inactive" && m.role in out) out[m.role] += 1;
+  for (const m of members) if (!["inactive", "removed"].includes(m.status) && m.role in out) out[m.role] += 1;
   return out;
 }
 

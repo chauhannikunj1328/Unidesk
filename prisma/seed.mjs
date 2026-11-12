@@ -114,6 +114,8 @@ async function main() {
   for (const c of clients) {
     let client = await prisma.client.findFirst({ where: { organizationId: a.id, name: c.name } });
     if (!client) client = await prisma.client.create({ data: { organizationId: a.id, name: c.name, email: c.email } });
+    // Sumit owns two clients, so removing him shows a real hand-over step.
+    await prisma.client.update({ where: { id: client.id }, data: { ownerId: ["Northwind LLC", "Harbor Dental"].includes(c.name) ? made["Sumit Okafor"].m.id : null } });
     for (const name of c.projects) {
       const exists = await prisma.project.findFirst({ where: { organizationId: a.id, clientId: client.id, name } });
       if (!exists) await prisma.project.create({ data: { organizationId: a.id, clientId: client.id, name } });
