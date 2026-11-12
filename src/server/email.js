@@ -26,3 +26,16 @@ export const resetEmail = (name, link) => ({
   subject: "Reset your Unidesk password",
   text: `Hi ${name},\n\nUse this link to choose a new password:\n${link}\n\nIt works for 1 hour and only once. If you didn't ask for this, you can ignore this email and your password stays the same.`,
 });
+
+/** The invitation. `apps` and `role` are plain words; `note` is the inviter's own text (shown as a quote, never as HTML). */
+export const inviteEmail = ({ inviter, org, role, apps, note, link, expires }) => ({
+  template: "team-invite",
+  subject: `${inviter} invited you to ${org}`,
+  text: [
+    `${inviter} invited you to join ${org} on Unidesk as ${/^[aeiou]/i.test(role) ? "an" : "a"} ${role}.`,
+    apps.length ? `Apps you can open: ${apps.join(", ")}.` : "",
+    note ? `\n${inviter} wrote:\n"${note}"` : "",
+    `\nAccept the invite:\n${link}`,
+    `\nThis invite works until ${expires}. If you weren't expecting it, you can ignore this email.`,
+  ].filter(Boolean).join("\n"),
+});

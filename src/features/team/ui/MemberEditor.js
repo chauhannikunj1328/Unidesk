@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Lock, Mail } from "lucide-react";
+import { Lock, Mail, Send } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { Toggle } from "@/components/ui/Toggle";
@@ -16,6 +16,7 @@ import { ROLES, ROLE_HELP, POWER_RANK } from "../constants";
 import { descendantIds } from "../filters";
 import { canEditMember, canEditRoles } from "../permissions";
 import { setAppAccessAction, setManagerAction, setRoleAction } from "../actions";
+import { resendInviteAction } from "../invite-actions";
 
 /**
  * Role, Reports to, App access and Recent activity for one person, with auto-save (06-team-member-detail.md).
@@ -38,6 +39,14 @@ export function MemberEditor({ member, members, viewer, timezone, onDone, sectio
   const first = member.name.split(" ")[0];
   const blocked = useMemo(() => descendantIds(members, member.id), [members, member.id]);
   const managerOptions = members.filter((m) => m.id !== member.id && !blocked.has(m.id) && m.role !== "CLIENT" && m.status !== "inactive");
+
+  const [resending, setResending] = useState(false);
+  async function resend() {
+    setResending(true);
+    const r = await resendInviteAction({ membershipId: member.id });
+    setResending(false);
+    toast(r.ok ? { kind: "success", message: `Invite sent again to ${r.email}` } : { kind: "error", message: r.error });
+  }
 
   function track(promise) {
     setSaved(false);
@@ -99,7 +108,11 @@ export function MemberEditor({ member, members, viewer, timezone, onDone, sectio
             {member.status === "active" && member.lastActiveAt ? ` · Active ${formatRelative(member.lastActiveAt, new Date(), timezone).toLowerCase()}` : ""}
           </p>
         </div>
-        <a href={`mailto:${member.email}`}><Button size="sm" icon={Mail}>Send message</Button></a>
+        {member.status === "invited" && editable ? (
+          <Button size="sm" icon={Send} loading={resending} onClick={resend}>Resend invite</Button>
+        ) : (
+          <a href={`mailto:${member.email}`}><Button size="sm" icon={Mail}>Send message</Button></a>
+        )}
       </div>
 
       {sections.includes("role") ? (

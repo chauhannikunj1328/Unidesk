@@ -58,6 +58,7 @@ model Organization {
   appAccess   AppAccess[]
   clients     Client[]
   projects    Project[]
+  invites     Invite[]
   auditEvents AuditEvent[]
 }
 
@@ -136,6 +137,8 @@ model Membership {
   status         MembershipStatus @default(ACTIVE)
   reportsToId    String?
   invitedById    String?
+  // For a Client login: which client record this person belongs to (set from the invite).
+  clientId       String?
   // A removed person must not leave dangling manager or inviter references behind.
   reportsTo      Membership?      @relation("MembershipReports", fields: [reportsToId], references: [id], onDelete: SetNull)
   reports        Membership[]     @relation("MembershipReports")
@@ -149,7 +152,9 @@ model Membership {
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
   appAccess    AppAccess[]
+  invite       Invite?
 
   @@unique([userId, organizationId])
   @@index([organizationId, createdAt])
@@ -185,6 +190,7 @@ model Client {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   projects     Project[]
+  memberships  Membership[]
 
   @@index([organizationId, createdAt])
 }
@@ -222,4 +228,38 @@ model AuditEvent {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+// One invite per invited person. The link token is made when the email is delivered (a few seconds after sending, so
+// "Undo" can stop it), and only its SHA-256 hash is stored.
+model Invite {
+  id             String       @id @default(cuid())
+  organizationId String
+  membershipId   String       @unique
+  email          String
+  note           String?
+  // Which send this belongs to, so Undo takes back the whole send.
+  batchId        String
+  invitedById    String
+  // True when this invite created the person's account, so Undo can remove the empty account again.
+  createdUser    Boolean      @default(false)
+  status         InviteStatus @default(PENDING)
+  tokenHash      String?      @unique
+  expiresAt      DateTime
+  deliverAfter   DateTime
+  deliveredAt    DateTime?
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership   Membership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([batchId])
 }

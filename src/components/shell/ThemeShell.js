@@ -14,7 +14,7 @@ export function ThemeShell({ theme, session, children }) {
   return (
     <ThemeProvider theme={theme}>
       <ToastProvider>
-        <CommandPaletteProvider apps={session.apps}>
+        <CommandPaletteProvider apps={session.apps} role={session.role}>
           <Shell session={session}>{children}</Shell>
           <DevThemeSwitcher />
         </CommandPaletteProvider>

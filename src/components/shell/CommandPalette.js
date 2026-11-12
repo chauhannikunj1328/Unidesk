@@ -1,7 +1,8 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, Search } from "lucide-react";
+import { CornerDownLeft, Search, UserPlus } from "lucide-react";
+import { canInvite } from "@/features/team/invite-rules";
 import { Layer } from "@/components/ui/Layer";
 import { HUB_NAV, APPS, isBuilt } from "@/lib/nav";
 import { cn } from "@/components/ui/cn";
@@ -10,7 +11,7 @@ const PaletteContext = createContext(() => {});
 export const useCommandPalette = () => useContext(PaletteContext);
 
 /** ⌘K opens a list of pages and apps. People and records join it as their flows are built (Hub flow 25). */
-export function CommandPaletteProvider({ apps, children }) {
+export function CommandPaletteProvider({ apps, role, children }) {
   const [open, setOpen] = useState(false);
   const toggle = useCallback(() => setOpen(true), []);
   useEffect(() => {
@@ -23,12 +24,12 @@ export function CommandPaletteProvider({ apps, children }) {
   return (
     <PaletteContext.Provider value={toggle}>
       {children}
-      <PaletteDialog open={open} onClose={() => setOpen(false)} apps={apps} />
+      <PaletteDialog open={open} onClose={() => setOpen(false)} apps={apps} role={role} />
     </PaletteContext.Provider>
   );
 }
 
-function PaletteDialog({ open, onClose, apps }) {
+function PaletteDialog({ open, onClose, apps, role }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [index, setIndex] = useState(0);
@@ -37,8 +38,10 @@ function PaletteDialog({ open, onClose, apps }) {
   const items = useMemo(() => {
     const pages = HUB_NAV.flatMap((g) => g.items ?? []).filter(isBuilt).map((i) => ({ label: i.label, href: i.href, icon: i.icon, hint: "Page" }));
     const appItems = APPS.filter((a) => apps.includes(a.code)).map((a) => ({ label: a.label, href: a.href, icon: a.icon, hint: "App", dot: a.dot }));
-    return [...pages, ...appItems];
-  }, [apps]);
+    // Actions people can do from anywhere. Only offered to people who are allowed to do them.
+    const actions = canInvite(role) ? [{ label: "Invite people", href: "/hub/team?invite=1", icon: UserPlus, hint: "Action" }] : [];
+    return [...actions, ...pages, ...appItems];
+  }, [apps, role]);
   const results = items.filter((i) => i.label.toLowerCase().includes(q.trim().toLowerCase()));
 
   useEffect(() => { if (open) { setQ(""); setIndex(0); setTimeout(() => inputRef.current?.focus(), 0); } }, [open]);

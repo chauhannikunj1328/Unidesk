@@ -8,6 +8,9 @@ const ACTIONS = {
   "client.archived": "Archived a client",
   "project.created": "Added a project",
   "team.invited": "Invited a person",
+  "team.invite_undone": "Took back an invite",
+  "team.invite_resent": "Resent an invite",
+  "team.invite_accepted": "Joined the team",
   "team.role_changed": "Changed a role",
 };
 

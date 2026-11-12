@@ -3,6 +3,8 @@ import { requireAccess } from "@/server/access";
 import { canSeeActivity } from "./permissions";
 import { seatUsage } from "./seats";
 import { ALL_APPS } from "./constants";
+import { canInvite } from "./invite-rules";
+import { flushDueInvites } from "./invites";
 
 /**
  * Everything the Team screens need, from one set of queries, so tiles, tabs, cards and tables always agree (HUB-01).
@@ -12,9 +14,11 @@ import { ALL_APPS } from "./constants";
 export async function getTeam(session) {
   requireAccess(session, { roles: ["OWNER", "ADMIN", "MANAGER", "ACCOUNTANT", "MEMBER"] }); // clients never read the team
   const db = withOrg(session);
-  const [rows, org] = await Promise.all([
+  if (canInvite(session.role)) await flushDueInvites(session); // emails whose Undo time has passed
+  const [rows, org, clients] = await Promise.all([
     db.membership.findMany({ include: { user: true, appAccess: true }, orderBy: { createdAt: "asc" } }),
     db.organization.get(),
+    canInvite(session.role) ? db.client.findMany({ where: { archived: false }, orderBy: { name: "asc" } }) : [],
   ]);
 
   const nameById = new Map(rows.map((r) => [r.id, r.user.name]));
@@ -61,5 +65,5 @@ export async function getTeam(session) {
   }
   for (const m of members.filter((x) => x.role === "CLIENT" && x.apps.length === 0)) needsAttention.push({ kind: "client-no-access", memberId: m.id, title: `${m.name} can't open any app`, detail: "Give this client access to a portal app" });
 
-  return { members, seats, appUsage, needsAttention, orgName: org.name, timezone: org.timezone };
+  return { members, seats, appUsage, needsAttention, orgName: org.name, timezone: org.timezone, clients: clients.map((c) => ({ id: c.id, name: c.name })) };
 }

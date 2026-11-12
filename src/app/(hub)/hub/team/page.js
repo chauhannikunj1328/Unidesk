@@ -3,6 +3,7 @@ import { requireSession } from "@/server/session";
 import { getTheme } from "@/lib/theme";
 import { getTeam } from "@/features/team/queries";
 import { canSeeAccessTab } from "@/features/team/permissions";
+import { InviteButton, InviteHost } from "@/features/team/ui/InviteDrawer";
 import { ThemePageHeader } from "@/components/shell/ThemePageHeader";
 import { GlassTeam } from "@/themes/glass/team/GlassTeam";
 import { PastelTeam } from "@/themes/pastel/team/PastelTeam";
@@ -33,11 +34,13 @@ export default async function TeamPage() {
         description="Invite people, choose their role and which apps they can open. Everyone reports to the person who invited them."
         chips={[{ label: `${active} active`, dot: "#a6c64a" }, ...(invited ? [{ label: `${invited} invite pending`, dot: "#f2b94b" }] : []), { label: `${data.seats.used} of ${data.seats.limit} seats` }]}
         tabs={tabs}
+        actions={<InviteButton role={session.role} variant={theme === "grove" ? "secondary" : "primary"} />}
         user={session}
         timezone={data.timezone}
       />
       <Suspense fallback={null}>
         <Screen data={data} viewer={viewer} />
+        <InviteHost data={data} viewer={viewer} />
       </Suspense>
     </>
   );

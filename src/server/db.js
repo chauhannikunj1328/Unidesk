@@ -9,7 +9,7 @@ import { prisma } from "./prisma.js";
  */
 
 /** Models that carry organizationId. Add every new org-owned model here. */
-export const SCOPED_MODELS = ["membership", "appAccess", "client", "project"];
+export const SCOPED_MODELS = ["membership", "appAccess", "client", "project", "invite"];
 
 /** Append-only models: create and read only. No update, no delete, ever. */
 export const APPEND_ONLY_MODELS = ["auditEvent"];

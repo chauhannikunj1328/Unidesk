@@ -71,3 +71,13 @@ npm run dev              # http://localhost:3000
 - The Figma file ("Aroh360 | UX Audit", key `Yd2PDGYtj9qbKUP0JdHHAk`) cannot be read: the connected Figma account has no access. Designs arrive as screenshots pasted into the chat.
 - A stray `package-lock.json` in the home folder triggers a Next.js warning; `outputFileTracingRoot` in `next.config.mjs` silences it.
 - Do not run `next build` while the dev server runs; both use `.next`. Stop one, clear `.next`, start the other.
+
+## Flow 05, Invite people (12 Nov 2026)
+- Open it from the Team header button, the command palette ("Invite people"), or `/hub/team?invite=1` (`&inviteRole=ACCOUNTANT` preselects a role). One drawer for all three themes; grove gets the band-coloured header.
+- Sending is two steps so Undo really works: `createInvites` saves people as Invited, the email goes out 8 seconds later (`deliverInvites`, timer in `ui/invite-sender.js`). If the tab closes first, `flushDueInvites` (called by `getTeam`) sends it on the next Team page load.
+- The link token is made at delivery and only its hash is stored. Resend makes a new token and the old link stops working.
+- Accept page: `/invite/[token]` (new person: name + password; existing account: sign in as the invited email, then "Accept invite").
+- Emails go to `EmailLog` (see `/dev/emails`); no real mail provider yet.
+- Known gaps: Google sign-in on the accept page; the inviter is not notified (no notifications table yet, only the audit event); "Reports to" is a plain select, not the avatar combobox; "Add seats" has no link until Billing exists; a person who already belongs to another organization accepts fine but must switch organization to see the new one; pastel's "Invite an accountant" empty-slot entry and floating bar are not built.
+- After changing `prisma/schema.prisma`, restart the dev server (it keeps the old Prisma client otherwise).
+- `tests/unit/auth-flow.test.js` "locks an address after 20 failures across emails" can exceed the 5 second limit on a slow machine (20 password hashes); it is unrelated to invites.
