@@ -4,6 +4,10 @@ import { getTheme } from "@/lib/theme";
 import { getTeam } from "@/features/team/queries";
 import { canSeeAccessTab } from "@/features/team/permissions";
 import { InviteButton, InviteHost } from "@/features/team/ui/InviteDrawer";
+import { greetingFor } from "@/lib/dates";
+import { RolesDrawerHost, RolesPill } from "@/features/team/ui/RolesDrawer";
+import { roleHeadcount } from "@/features/team/roles-rules";
+import { teamTabs } from "@/features/team/ui/tabs";
 import { ThemePageHeader } from "@/components/shell/ThemePageHeader";
 import { GlassTeam } from "@/themes/glass/team/GlassTeam";
 import { PastelTeam } from "@/themes/pastel/team/PastelTeam";
@@ -20,8 +24,7 @@ export default async function TeamPage() {
   const viewer = { membershipId: session.membershipId, role: session.role };
   const Screen = SCREENS[theme];
 
-  // Glass keeps App access inside each person's panel, so it has no separate tab.
-  const tabs = theme !== "glass" && canSeeAccessTab(viewer) ? [{ href: "/hub/team", label: "People", count: data.members.length }, { href: "/hub/team/access", label: "App access" }] : [];
+  const tabs = teamTabs({ theme, viewer, team: data, canAccess: canSeeAccessTab(viewer) });
   const active = data.members.filter((m) => m.status === "active").length;
   const invited = data.members.filter((m) => m.status === "invited").length;
 
@@ -34,13 +37,15 @@ export default async function TeamPage() {
         description="Invite people, choose their role and which apps they can open. Everyone reports to the person who invited them."
         chips={[{ label: `${active} active`, dot: "#a6c64a" }, ...(invited ? [{ label: `${invited} invite pending`, dot: "#f2b94b" }] : []), { label: `${data.seats.used} of ${data.seats.limit} seats` }]}
         tabs={tabs}
-        actions={<InviteButton role={session.role} variant={theme === "grove" ? "secondary" : "primary"} />}
+        actions={<>{theme === "pastel" ? <RolesPill /> : null}<InviteButton role={session.role} variant={theme === "grove" ? "secondary" : "primary"} /></>}
+        greeting={theme === "grove" ? greetingFor(session.name, data.timezone) : undefined}
         user={session}
         timezone={data.timezone}
       />
       <Suspense fallback={null}>
         <Screen data={data} viewer={viewer} />
         <InviteHost data={data} viewer={viewer} />
+        {theme === "pastel" ? <RolesDrawerHost counts={roleHeadcount(data.members)} yourRole={session.role} /> : null}
       </Suspense>
     </>
   );

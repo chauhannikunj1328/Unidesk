@@ -66,7 +66,7 @@ test("a Member cannot open the invite drawer", async ({ page }) => {
   await signIn(page, { email, password: OWNER.password });
   await page.goto("/hub/team?invite=1");
   await expect(page.getByRole("dialog", { name: "Invite people" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Invite member" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Invite (member|people)/ })).toHaveCount(0);
 });
 
 test("an invite link that was never valid says so and shows no form", async ({ page }) => {

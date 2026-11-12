@@ -59,6 +59,7 @@ model Organization {
   clients     Client[]
   projects    Project[]
   invites     Invite[]
+  sharedData  SharedDataSetting[]
   auditEvents AuditEvent[]
 }
 
@@ -241,7 +242,8 @@ enum InviteStatus {
 model Invite {
   id             String       @id @default(cuid())
   organizationId String
-  membershipId   String       @unique
+  // Cleared when the person is removed (revoked or undone), so the used link can still say "no longer valid".
+  membershipId   String?      @unique
   email          String
   note           String?
   // Which send this belongs to, so Undo takes back the whole send.
@@ -258,8 +260,25 @@ model Invite {
   createdAt      DateTime     @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  membership   Membership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  membership   Membership?  @relation(fields: [membershipId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([batchId])
+}
+
+// Which apps may read the organization's contacts, clients and projects (Hub flow 09). One row per app; no row means
+// the defaults in src/features/team/shared-data-rules.js. Turning a switch off never deletes data.
+model SharedDataSetting {
+  id             String   @id @default(cuid())
+  organizationId String
+  app            App
+  contacts       Boolean
+  clients        Boolean
+  projects       Boolean
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, app])
 }

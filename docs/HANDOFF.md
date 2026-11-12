@@ -81,3 +81,22 @@ npm run dev              # http://localhost:3000
 - Known gaps: Google sign-in on the accept page; the inviter is not notified (no notifications table yet, only the audit event); "Reports to" is a plain select, not the avatar combobox; "Add seats" has no link until Billing exists; a person who already belongs to another organization accepts fine but must switch organization to see the new one; pastel's "Invite an accountant" empty-slot entry and floating bar are not built.
 - After changing `prisma/schema.prisma`, restart the dev server (it keeps the old Prisma client otherwise).
 - `tests/unit/auth-flow.test.js` "locks an address after 20 failures across emails" can exceed the 5 second limit on a slow machine (20 password hashes); it is unrelated to invites.
+
+## Flow 08, Pending invites (12 Nov 2026)
+- Tab "Invites" at `/hub/team/invites` (all three themes; glass now has People and Invites tabs). The tab count comes from `pendingInviteCount`, the same query the list uses. Managers see only invites they sent.
+- Resend: once an hour per invite, subject "Reminder: ...". Revoke removes the person and frees the seat; the invite row stays (`Invite.membershipId` is now nullable, set null on removal) so the old link says "no longer valid".
+- "Copy invite link" makes a NEW link and copies it (links are stored hashed, so the old one cannot be shown); owners and admins only; dates unchanged; no email.
+- Expired invites stay listed with "Send new invite" for 30 days after expiry.
+- The seed now creates a real invite for Lena Fischer (sent 2 days ago), so the tab is not empty in demo data.
+- Not done: the dashboard "Needs attention" entry (flow 03).
+
+## Flow 09, Shared data (12 Nov 2026)
+- Tab "Shared data" at `/hub/team/shared-data`, owners and admins only. Table `SharedDataSetting` (one row per organization and app; no row = defaults in `shared-data-rules.js`, the spec's proposed table, still to confirm with the client).
+- Projects need Clients both ways (Clients off turns Projects off; Projects on turns Clients on). Turning off something an app relies on asks first, with the consequence text from `CONSEQUENCE`. Undo restores all three switches of the app.
+- IMPORTANT: no app reads these settings yet (the apps are not built). Every app must check `SharedDataSetting` (through `getSharedData`-style helpers, scoped by organization) when it reads contacts, clients or projects.
+- The seed clears shared-data rows for the demo organization so tests start from the defaults.
+- Layout change (12 Nov): all three shells now fill the window width (no 1440px cap) with 40px padding around the page content (24px below 1100px).
+
+## Roles and permissions page (12 Nov 2026)
+- `/hub/team/roles` (tab "Roles 6" in glass and grove; pastel opens it as a drawer from the "Roles & permissions" pill, `?roles=1`). Read-only. The rows live in `roles-rules.js`; `tests/unit/roles-rules.test.js` fails if the page says something the permission helpers do not enforce, so update both together.
+- Decision: the invite drawer keeps the Client role (the Figma Team frame shows four roles).

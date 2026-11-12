@@ -10,6 +10,10 @@ const ACTIONS = {
   "team.invited": "Invited a person",
   "team.invite_undone": "Took back an invite",
   "team.invite_resent": "Resent an invite",
+  "team.shared_data_on": "Let an app read shared data",
+  "team.shared_data_off": "Stopped an app reading shared data",
+  "team.invite_revoked": "Revoked an invite",
+  "team.invite_link_copied": "Made a new invite link",
   "team.invite_accepted": "Joined the team",
   "team.role_changed": "Changed a role",
 };

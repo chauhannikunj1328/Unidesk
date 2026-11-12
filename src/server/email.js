@@ -28,9 +28,9 @@ export const resetEmail = (name, link) => ({
 });
 
 /** The invitation. `apps` and `role` are plain words; `note` is the inviter's own text (shown as a quote, never as HTML). */
-export const inviteEmail = ({ inviter, org, role, apps, note, link, expires }) => ({
+export const inviteEmail = ({ inviter, org, role, apps, note, link, expires, reminder = false }) => ({
   template: "team-invite",
-  subject: `${inviter} invited you to ${org}`,
+  subject: `${reminder ? "Reminder: " : ""}${inviter} invited you to ${org}`,
   text: [
     `${inviter} invited you to join ${org} on Unidesk as ${/^[aeiou]/i.test(role) ? "an" : "a"} ${role}.`,
     apps.length ? `Apps you can open: ${apps.join(", ")}.` : "",

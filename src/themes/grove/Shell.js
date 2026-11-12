@@ -7,9 +7,9 @@ import { ProfileMenu } from "@/components/shell/ProfileMenu";
 export function GroveShell({ session, children }) {
   return (
     <div className="min-h-screen p-6 max-[1100px]:p-3">
-      <div className="mx-auto flex min-h-[calc(100vh-48px)] max-w-[1440px] overflow-hidden" style={{ background: "var(--shell-bg)", borderRadius: "var(--shell-radius)" }}>
+      <div className="flex min-h-[calc(100vh-48px)] w-full overflow-hidden" style={{ background: "var(--shell-bg)", borderRadius: "var(--shell-radius)" }}>
         <Sidebar session={session} />
-        <div className="min-w-0 flex-1 px-6 py-5">
+        <div className="min-w-0 flex-1 p-10 max-[1100px]:p-6">
           <div className="mb-4 flex items-center justify-end gap-2.5">
             <OrgSwitcher orgName={session.orgName} />
             <NotificationsBell />

@@ -4,6 +4,10 @@ import { roleLabel, appLabel } from "@/lib/labels";
 import { appByCode } from "@/lib/apps";
 import { APP_ICONS } from "@/components/shell/app-icons";
 import { Chip } from "@/components/ui/Chip";
+import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
+import { useState } from "react";
+import { resendInviteAction } from "../invite-actions";
 import { cn } from "@/components/ui/cn";
 
 /** Pastel shows a coloured role chip; glass and grove show the role as plain words (per the designs). */
@@ -23,7 +27,7 @@ export function AppChips({ apps, role, max = 3 }) {
   if (apps.length === 0) return <span className="text-muted">No apps</span>;
   const shown = apps.slice(0, max);
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
+    <span className="inline-flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
       {shown.map((a) => <Chip key={a}>{appLabel(a)}</Chip>)}
       {apps.length > max ? <Chip>+{apps.length - max}</Chip> : null}
     </span>
@@ -49,3 +53,17 @@ export function AppIconRow({ apps }) {
 
 export const roleName = (role) => roleLabel(role);
 export const appCount = (m) => (m.role === "OWNER" ? "All 7 apps" : `${m.apps.length} ${m.apps.length === 1 ? "app" : "apps"}`);
+
+/** "Resend" for someone who has not joined yet: a black pill in every design that shows an invited person. */
+export function ResendInviteButton({ member, size = "sm", variant = "primary" }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button size={size} variant={variant} loading={busy} onClick={async () => {
+      setBusy(true);
+      const r = await resendInviteAction({ membershipId: member.id });
+      setBusy(false);
+      toast(r.ok ? { kind: "success", message: `Invite sent again to ${r.email}` } : { kind: "error", message: r.error });
+    }}>Resend</Button>
+  );
+}

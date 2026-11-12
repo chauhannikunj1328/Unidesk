@@ -35,3 +35,10 @@ export function daysAgo(date, now = new Date(), timeZone = "America/New_York") {
   if (days === 1) return "yesterday";
   return `${days} days ago`;
 }
+
+/** "Good morning, Paul" by the hour in the given time zone. */
+export function greetingFor(fullName, timeZone = "America/New_York", now = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone }).format(now)) % 24;
+  const part = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  return `Good ${part}, ${String(fullName).split(" ")[0]}`;
+}

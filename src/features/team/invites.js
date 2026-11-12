@@ -140,7 +140,7 @@ export async function createInvites(session, input) {
 }
 
 /** Sends the email for one invite and makes its link. Returns false if another request already did. */
-async function deliverOne(invite, inviterName, orgName, timezone) {
+async function deliverOne(invite, inviterName, orgName, timezone, { reminder = false } = {}) {
   const raw = newToken();
   const expiresAt = new Date(Date.now() + INVITE_DAYS * DAY);
   const claimed = await prisma.invite.updateMany({
@@ -154,7 +154,7 @@ async function deliverOne(invite, inviterName, orgName, timezone) {
   await sendEmail({
     to: invite.email,
     link,
-    ...inviteEmail({ inviter: inviterName, org: orgName, role: roleLabel(m.role), apps: apps.map(appLabel), note: invite.note, link, expires: formatDate(expiresAt, timezone) }),
+    ...inviteEmail({ inviter: inviterName, org: orgName, role: roleLabel(m.role), apps: apps.map(appLabel), note: invite.note, link, expires: formatDate(expiresAt, timezone), reminder }),
   });
   return true;
 }
@@ -219,25 +219,148 @@ export async function undoInvites(session, { batchId }) {
   return { ok: true, undone, kept };
 }
 
-/** Sends the invite again with a new link and a fresh 7 days. The old link stops working. */
+/** How often one invite may be sent again. */
+export const RESEND_WAIT_MS = 3600 * 1000;
+
+/** "You can resend in 42 minutes" (never "0 minutes"). */
+export function resendWaitMessage(lastSentAt, now = Date.now()) {
+  const left = lastSentAt ? RESEND_WAIT_MS - (now - lastSentAt.getTime()) : 0;
+  if (left <= 0) return null;
+  const minutes = Math.ceil(left / 60000);
+  return `You can resend in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+}
+
+/** Owners and admins act on every invite; a manager only on invites they sent. */
+const canActOn = (session, invite) => ["OWNER", "ADMIN"].includes(session.role) || (session.role === "MANAGER" && invite.invitedById === session.membershipId);
+
+/** A person's waiting invite, or null. */
+async function pendingFor(db, membershipId) {
+  const target = await db.membership.findFirst({ where: { id: membershipId, status: "INVITED" }, include: { user: true, invite: true } });
+  return target?.invite && target.invite.status === "PENDING" ? target : null;
+}
+
+const GONE = "This invite is no longer waiting. Refresh the page.";
+
+/** Sends the invite again with a new link and a fresh 7 days. The old link stops working. Once an hour per invite. */
 export async function resendInvite(session, { membershipId }) {
   requireAccess(session, { roles: STAFF });
   const db = withOrg(session);
-  const target = await db.membership.findFirst({ where: { id: membershipId, status: "INVITED" }, include: { user: true, invite: true } });
-  if (!target || !target.invite || target.invite.status !== "PENDING") return fail("This invite is no longer waiting. Refresh the page.");
-  const canResend = ["OWNER", "ADMIN"].includes(session.role) || (session.role === "MANAGER" && target.reportsToId === session.membershipId);
-  if (!canResend) throw new AccessError();
-  if (target.invite.deliveredAt && Date.now() - target.invite.deliveredAt.getTime() < 60_000) return fail("Sent a moment ago. Give it a minute before sending again.");
+  const target = await pendingFor(db, membershipId);
+  if (!target) return fail(GONE);
+  if (!canActOn(session, target.invite)) throw new AccessError();
+  const wait = resendWaitMessage(target.invite.deliveredAt);
+  if (wait) return fail(wait);
 
   // Make it eligible for a fresh delivery: the old link is cleared first, so it stops working at once.
   await db.invite.updateMany({ where: { id: target.invite.id }, data: { tokenHash: null, deliveredAt: null } });
   const org = await db.organization.get();
   const inviter = await prisma.membership.findUnique({ where: { id: target.invite.invitedById }, include: { user: true } });
-  const sent = await deliverOne({ ...target.invite, deliveredAt: null }, inviter?.user.name ?? session.name, org.name, org.timezone);
+  const sent = await deliverOne({ ...target.invite, deliveredAt: null }, inviter?.user.name ?? session.name, org.name, org.timezone, { reminder: true });
   if (!sent) return fail("Could not send the invite. Try again.");
   await db.membership.updateMany({ where: { id: membershipId }, data: { invitedAt: new Date() } });
-  await writeAudit(session, { action: "team.invite_resent", entityType: "membership", entityId: membershipId, summary: `${session.name} resent the invite to ${target.invite.email}` });
+  await writeAudit(session, { action: "team.invite_resent", entityType: "membership", entityId: membershipId, summary: `${session.name} resent the invite to ${target.user.name === nameFromEmail(target.invite.email) ? target.invite.email : target.user.name}` });
   return { ok: true, email: target.invite.email };
+}
+
+/** Takes an invite back: the person is removed, the seat is free again, and the link says "no longer valid". */
+export async function revokeInvite(session, { membershipId }) {
+  requireAccess(session, { roles: STAFF });
+  const db = withOrg(session);
+  const target = await pendingFor(db, membershipId);
+  if (!target) return fail(GONE);
+  if (!canActOn(session, target.invite)) throw new AccessError();
+  const claimed = await db.invite.updateMany({ where: { id: target.invite.id, status: "PENDING" }, data: { status: "REVOKED" } });
+  if (claimed.count !== 1) return fail(GONE); // accepted at the same moment
+  await db.membership.deleteMany({ where: { id: membershipId } }); // access rows go with it; the invite stays as a record
+  if (target.invite.createdUser && (await prisma.membership.count({ where: { userId: target.userId } })) === 0) {
+    await prisma.user.deleteMany({ where: { id: target.userId, passwordHash: null } });
+  }
+  await writeAudit(session, { action: "team.invite_revoked", entityType: "membership", entityId: membershipId, summary: `${session.name} revoked the invite to ${target.invite.email}` });
+  return { ok: true, email: target.invite.email };
+}
+
+/**
+ * Owners and admins only. We never keep a link we could show again, so this makes a new link, replacing the old one,
+ * and returns it once. No email is sent and the dates stay as they are.
+ */
+export async function issueInviteLink(session, { membershipId }) {
+  requireAccess(session, { roles: ["OWNER", "ADMIN"] });
+  const db = withOrg(session);
+  const target = await pendingFor(db, membershipId);
+  if (!target) return fail(GONE);
+  const inv = target.invite;
+  if (!inv.deliveredAt) return fail("This invite hasn't been sent yet. Wait a few seconds.");
+  if (inv.expiresAt < new Date()) return fail("This invite has expired. Send a new invite instead.");
+  const raw = newToken();
+  const claimed = await db.invite.updateMany({ where: { id: inv.id, status: "PENDING" }, data: { tokenHash: hashToken(raw) } });
+  if (claimed.count !== 1) return fail(GONE);
+  await writeAudit(session, { action: "team.invite_link_copied", entityType: "membership", entityId: membershipId, summary: `${session.name} made a new invite link for ${inv.email}` });
+  return { ok: true, link: `${appUrl()}/invite/${raw}`, email: inv.email };
+}
+
+/** Bulk: the same single-invite logic per person, one audit event each. One failure does not stop the rest. */
+async function bulk(fn, session, { membershipIds }) {
+  const results = [];
+  for (const membershipId of membershipIds) {
+    try {
+      results.push({ membershipId, ...(await fn(session, { membershipId })) });
+    } catch (e) {
+      if (!(e instanceof AccessError)) throw e;
+      results.push({ membershipId, ok: false, error: "You can only manage invites you sent." });
+    }
+  }
+  return { ok: results.every((r) => r.ok), results, done: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length };
+}
+export const resendInvites = (session, input) => bulk(resendInvite, session, input);
+export const revokeInvites = (session, input) => bulk(revokeInvite, session, input);
+
+/** Expired invites stay listed for 30 days after they expire, then drop off (the audit log keeps them). */
+export const EXPIRED_KEEP_DAYS = 30;
+
+/** Which invites this person may see: owners and admins all of them, a manager the ones they sent. */
+export function inviteScope(session) {
+  const where = { status: "PENDING", expiresAt: { gt: new Date(Date.now() - EXPIRED_KEEP_DAYS * DAY) } };
+  return session.role === "MANAGER" ? { ...where, invitedById: session.membershipId } : where;
+}
+
+/** The pending count on the tab: invites still open, not expired. Every page uses this one query. */
+export async function pendingInviteCount(session) {
+  if (!STAFF.includes(session.role)) return 0;
+  return withOrg(session).invite.count({ where: { ...inviteScope(session), expiresAt: { gt: new Date() } } });
+}
+
+/** Everything the Invites tab shows, as plain objects. */
+export async function getInvites(session) {
+  requireAccess(session, { roles: STAFF });
+  await flushDueInvites(session);
+  const db = withOrg(session);
+  const [rows, org, people] = await Promise.all([
+    db.invite.findMany({ where: inviteScope(session), include: { membership: { include: { user: true, appAccess: true } } }, orderBy: { createdAt: "desc" } }),
+    db.organization.get(),
+    db.membership.findMany({ include: { user: true } }),
+  ]);
+  const nameById = new Map(people.map((p) => [p.id, p.user.name]));
+  const now = Date.now();
+  const invites = rows.filter((r) => r.membership).map((r) => {
+    const sentAt = r.deliveredAt ?? r.createdAt;
+    const nextAt = r.deliveredAt ? new Date(r.deliveredAt.getTime() + RESEND_WAIT_MS) : null;
+    const known = r.membership.user.name !== nameFromEmail(r.email);
+    return {
+      id: r.id,
+      membershipId: r.membershipId,
+      email: r.email,
+      name: known ? r.membership.user.name : null,
+      role: r.membership.role,
+      apps: ALL_APPS.filter((a) => r.membership.appAccess.some((x) => x.app === a)),
+      invitedByName: nameById.get(r.invitedById) ?? "Someone who has left",
+      sentAt: sentAt.toISOString(),
+      expiresAt: r.expiresAt.toISOString(),
+      expired: r.expiresAt.getTime() <= now,
+      resendAt: nextAt && nextAt.getTime() > now ? nextAt.toISOString() : null,
+      canCopyLink: ["OWNER", "ADMIN"].includes(session.role) && Boolean(r.deliveredAt) && r.expiresAt.getTime() > now,
+    };
+  });
+  return { invites, pending: invites.filter((i) => !i.expired).length, expired: invites.filter((i) => i.expired).length, timezone: org.timezone };
 }
 
 export { usesSeats };

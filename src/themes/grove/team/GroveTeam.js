@@ -16,7 +16,7 @@ import { filterMembers, statusCounts } from "@/features/team/filters";
 import { canEditMember, canOpenMember } from "@/features/team/permissions";
 import { ROLES } from "@/features/team/constants";
 import { useDebouncedQuery, useTeamParams } from "@/features/team/ui/use-team-params";
-import { AppIconRow } from "@/features/team/ui/bits";
+import { AppIconRow, ResendInviteButton } from "@/features/team/ui/bits";
 import { PeopleTable } from "@/features/team/ui/PeopleTable";
 import { MemberEditor } from "@/features/team/ui/MemberEditor";
 
@@ -66,7 +66,7 @@ export function GroveTeam({ data, viewer }) {
                       <p className="font-medium text-ink">{n.kind === "seats" ? `${appLabel(n.app)} has ${n.left} ${n.left === 1 ? "seat" : "seats"} left` : n.title}</p>
                       <p className="truncate text-sm text-muted">{n.kind === "invite" && member?.invitedAt ? `${roleLabel(member.role)} · sent ${daysAgo(member.invitedAt, new Date(), timezone)}` : n.detail}</p>
                     </div>
-                    {member && canEditMember(viewer, member) ? <Button size="sm" variant="primary" onClick={() => set({ id: member.id })}>{n.kind === "client-no-access" ? "Give access" : "Edit access"}</Button> : null}
+                    {member && canEditMember(viewer, member) ? (n.kind === "invite" ? <ResendInviteButton member={member} /> : <Button size="sm" variant="primary" onClick={() => set({ id: member.id })}>{n.kind === "client-no-access" ? "Give access" : "Edit access"}</Button>) : null}
                   </li>
                 );
               })}
@@ -137,7 +137,7 @@ export function GroveTeam({ data, viewer }) {
                 <div className="flex items-center justify-between"><AppIconRow apps={m.apps} /><span className="tabular text-sm text-muted">{m.apps.length}/7</span></div>
                 <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
                   <span className="text-sm text-muted">{m.status === "invited" && m.invitedAt ? `Sent ${daysAgo(m.invitedAt, new Date(), timezone)}` : formatRelative(m.lastActiveAt, new Date(), timezone)}</span>
-                  {canOpenMember(viewer, m) ? <Button size="sm" onClick={() => set({ id: m.id })}>{canEditMember(viewer, m) ? "Edit access" : "View"}</Button> : null}
+                  {m.status === "invited" && canEditMember(viewer, m) ? <ResendInviteButton member={m} /> : canOpenMember(viewer, m) ? <Button size="sm" onClick={() => set({ id: m.id })}>{canEditMember(viewer, m) ? "Edit access" : "View"}</Button> : null}
                 </div>
               </li>
             ))}

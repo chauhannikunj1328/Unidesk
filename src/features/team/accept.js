@@ -12,7 +12,7 @@ import { roleLabel } from "@/lib/labels";
 
 const lookup = (raw) =>
   typeof raw === "string" && raw.length >= 20 && raw.length <= 200
-    ? prisma.invite.findUnique({ where: { tokenHash: hashToken(raw) }, include: { membership: { include: { user: true, organization: true } } } })
+    ? prisma.invite.findUnique({ where: { tokenHash: hashToken(raw) }, include: { organization: true, membership: { include: { user: true } } } })
     : null;
 
 /**
@@ -23,25 +23,26 @@ export async function getInviteInfo(raw) {
   const invite = await lookup(raw);
   if (!invite) return { status: "invalid" };
   const inviter = await prisma.membership.findUnique({ where: { id: invite.invitedById }, include: { user: true } });
+  const m = invite.membership; // gone when the invite was taken back
   const base = {
-    orgName: invite.membership.organization.name,
+    orgName: invite.organization.name,
     inviterName: inviter?.user.name ?? "A teammate",
-    role: roleLabel(invite.membership.role),
-    roleCode: invite.membership.role,
+    role: m ? roleLabel(m.role) : "",
+    roleCode: m?.role,
     email: invite.email,
-    name: invite.membership.user.name,
-    hasAccount: Boolean(invite.membership.user.passwordHash),
+    name: m?.user.name ?? "",
+    hasAccount: Boolean(m?.user.passwordHash),
     note: invite.note,
   };
   if (invite.status === "ACCEPTED") return { status: "accepted", ...base };
   // A removed or taken-back invite is the same to the person holding the link.
-  if (invite.status === "REVOKED" || invite.membership.status !== "INVITED") return { status: "revoked", ...base };
+  if (invite.status === "REVOKED" || !m || m.status !== "INVITED") return { status: "revoked", ...base };
   if (invite.expiresAt < new Date()) return { status: "expired", ...base };
   return { status: "ok", ...base };
 }
 
 async function activate(invite, userId) {
-  const m = invite.membership;
+  const m = { ...invite.membership, organization: invite.organization };
   const claimed = await prisma.invite.updateMany({ where: { id: invite.id, status: "PENDING" }, data: { status: "ACCEPTED", acceptedAt: new Date() } });
   if (claimed.count !== 1) return false; // a second tap or a parallel request
   await prisma.membership.update({ where: { id: m.id }, data: { status: "ACTIVE", joinedAt: new Date(), lastActiveAt: new Date() } });

@@ -1,6 +1,7 @@
 // Demo and test data. Never run against production.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { createHash, randomBytes } from "node:crypto";
 
 if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed demo data in production.");
@@ -62,6 +63,19 @@ async function main() {
   for (const [who, boss] of Object.entries(reports)) {
     await prisma.membership.update({ where: { id: made[who].m.id }, data: { reportsToId: made[boss].m.id, invitedById: made[boss].m.id } });
   }
+  // Shared data starts from the defaults (no rows), so tests and demos begin in a known state.
+  await prisma.sharedDataSetting.deleteMany({ where: { organizationId: a.id } });
+  // Lena's invite, so the Invites tab has a real waiting invite (sent 2 days ago, expires in 5). Its link is unknown by design.
+  const lena = made["Lena Fischer"].m;
+  const lenaInvite = {
+    organizationId: a.id, email: "lena@unideskdemo.example", batchId: "seed", invitedById: made["Sofia Alvarez"].m.id, status: "PENDING",
+    createdAt: ago(2), deliverAfter: ago(2), deliveredAt: ago(2), expiresAt: ago(-5), acceptedAt: null,
+  };
+  await prisma.invite.upsert({
+    where: { membershipId: lena.id },
+    update: lenaInvite,
+    create: { ...lenaInvite, membershipId: lena.id, tokenHash: createHash("sha256").update(randomBytes(32)).digest("hex") },
+  });
   // Sample activity (dev data only) so the "Recent activity" section can be checked.
   if ((await prisma.auditEvent.count({ where: { organizationId: a.id } })) === 0) {
     await prisma.auditEvent.createMany({

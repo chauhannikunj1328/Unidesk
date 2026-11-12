@@ -10,7 +10,7 @@ import { getIpHash } from "@/server/request";
 import { allowPublicForm } from "@/server/rate-limit";
 import { ALL_APPS, ROLES } from "./constants";
 import { MAX_INVITES, NOTE_MAX } from "./invite-rules";
-import { createInvites, deliverInvites, resendInvite, undoInvites } from "./invites";
+import { createInvites, deliverInvites, issueInviteLink, resendInvite, resendInvites, revokeInvites, undoInvites } from "./invites";
 import { acceptSignedIn, acceptWithNewAccount } from "./accept";
 import { landingFor } from "@/lib/landing";
 
@@ -57,6 +57,17 @@ export async function undoInvitesAction(input) {
 
 export async function resendInviteAction(input) {
   return run(z.object({ membershipId: id }), input, resendInvite);
+}
+
+const ids = z.array(id).min(1).max(100);
+export async function resendInvitesAction(input) {
+  return run(z.object({ membershipIds: ids }), input, resendInvites);
+}
+export async function revokeInvitesAction(input) {
+  return run(z.object({ membershipIds: ids }), input, revokeInvites);
+}
+export async function copyInviteLinkAction(input) {
+  return run(z.object({ membershipId: id }), input, issueInviteLink, { refresh: false });
 }
 
 /** "Join" on the invite page, for someone with no account yet. Signs them in and opens their workspace. */

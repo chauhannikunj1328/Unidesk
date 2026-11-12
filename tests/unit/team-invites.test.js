@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/server/prisma";
 import { AccessError } from "@/server/access";
-import { createInvites, deliverInvites, flushDueInvites, resendInvite, undoInvites } from "@/features/team/invites";
+import { createInvites, deliverInvites, flushDueInvites, getInvites, issueInviteLink, pendingInviteCount, resendInvite, resendInvites, resendWaitMessage, revokeInvite, revokeInvites, undoInvites } from "@/features/team/invites";
 import { acceptSignedIn, acceptWithNewAccount, getInviteInfo } from "@/features/team/accept";
 
 /** Builds its own two organizations and removes them afterwards. Never touches the demo data. */
@@ -136,11 +136,12 @@ describe("resend", () => {
     await pastUndo();
     await deliverInvites(sess.owner, { batchId: r.batchId });
     const oldLink = (await sentTo(mail("again")))[0].link.split("/invite/")[1];
-    expect((await resendInvite(sess.owner, { membershipId: r.invited[0].membershipId })).error).toMatch(/give it a minute/i);
-    await prisma.invite.updateMany({ where: { membershipId: r.invited[0].membershipId }, data: { deliveredAt: new Date(Date.now() - 120_000) } });
+    expect((await resendInvite(sess.owner, { membershipId: r.invited[0].membershipId })).error).toMatch(/you can resend in \d+ minutes?/i);
+    await prisma.invite.updateMany({ where: { membershipId: r.invited[0].membershipId }, data: { deliveredAt: new Date(Date.now() - 2 * 3600_000) } });
     expect((await resendInvite(sess.owner, { membershipId: r.invited[0].membershipId })).ok).toBe(true);
     const mails = await sentTo(mail("again"));
     expect(mails).toHaveLength(2);
+    expect(mails.at(-1).subject).toBe(`Reminder: owner invited you to ${A.name}`);
     expect((await getInviteInfo(oldLink)).status).toBe("invalid");
     expect((await getInviteInfo(mails.at(-1).link.split("/invite/")[1])).status).toBe("ok");
     await undoInvites(sess.owner, { batchId: r.batchId }); // already delivered, so it stays
@@ -209,5 +210,118 @@ describe("one organization never touches another's invites", () => {
     const r = await send(sess.mgr);
     await expect(undoInvites({ ...sess.member, role: "MANAGER" }, { batchId: r.batchId })).rejects.toBeInstanceOf(AccessError);
     expect((await undoInvites(sess.admin, { batchId: r.batchId })).undone).toBe(1);
+  });
+});
+
+
+/** Sends an invite and lets it be delivered, returning the membership id. */
+async function delivered(s, email, extra = {}) {
+  const r = await send(s, { emails: [email], apps: ["SOP"], ...extra });
+  await pastUndo();
+  await deliverInvites(s, { batchId: r.batchId });
+  return { ...r, membershipId: r.invited[0].membershipId, token: (await sentTo(email)).at(-1).link.split("/invite/")[1] };
+}
+
+describe("pending invites list (flow 08)", () => {
+  it("the resend wait is worded in minutes", () => {
+    expect(resendWaitMessage(new Date(Date.now() - 18 * 60_000))).toBe("You can resend in 42 minutes.");
+    expect(resendWaitMessage(new Date(Date.now() - 59.9 * 60_000))).toBe("You can resend in 1 minute.");
+    expect(resendWaitMessage(new Date(Date.now() - 61 * 60_000))).toBeNull();
+    expect(resendWaitMessage(null)).toBeNull();
+  });
+
+  it("lists pending invites with who, role, apps, sent and expiry; the tab count matches", async () => {
+    const a = await delivered(sess.owner, mail("l1"));
+    const list = await getInvites(sess.owner);
+    const row = list.invites.find((i) => i.email === mail("l1"));
+    expect(row).toMatchObject({ role: "MEMBER", apps: ["SOP"], invitedByName: "owner", expired: false, canCopyLink: true, name: null });
+    expect(list.pending).toBe(await pendingInviteCount(sess.owner));
+    expect(list.pending).toBe(list.invites.filter((i) => !i.expired).length);
+    await revokeInvite(sess.owner, { membershipId: a.membershipId });
+  });
+
+  it("expired invites stay listed as expired, are not in the count, and vanish 30 days later", async () => {
+    const a = await delivered(sess.owner, mail("exp"));
+    const before = await pendingInviteCount(sess.owner);
+    await prisma.invite.updateMany({ where: { membershipId: a.membershipId }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect(await pendingInviteCount(sess.owner)).toBe(before - 1);
+    expect((await getInvites(sess.owner)).invites.find((i) => i.email === mail("exp"))).toMatchObject({ expired: true, canCopyLink: false });
+    await prisma.invite.updateMany({ where: { membershipId: a.membershipId }, data: { expiresAt: new Date(Date.now() - 31 * 24 * 3600_000) } });
+    expect((await getInvites(sess.owner)).invites.some((i) => i.email === mail("exp"))).toBe(false);
+    await revokeInvite(sess.owner, { membershipId: a.membershipId });
+  });
+
+  it("revoke removes the person, frees the seat and the old link says it is no longer valid", async () => {
+    const a = await delivered(sess.owner, mail("rev"));
+    expect((await getInviteInfo(a.token)).status).toBe("ok");
+    expect(await revokeInvite(sess.owner, { membershipId: a.membershipId })).toMatchObject({ ok: true, email: mail("rev") });
+    expect(await prisma.membership.count({ where: { id: a.membershipId } })).toBe(0);
+    expect(await prisma.user.count({ where: { email: mail("rev") } })).toBe(0);
+    expect((await getInviteInfo(a.token)).status).toBe("revoked");
+    expect((await acceptWithNewAccount(a.token, { name: "X", password: "a-long-password-1", termsAccepted: true })).status).toBe("revoked");
+    expect((await prisma.auditEvent.findFirst({ where: { organizationId: A.id, action: "team.invite_revoked" }, orderBy: { createdAt: "desc" } })).summary).toBe(`owner revoked the invite to ${mail("rev")}`);
+    expect((await revokeInvite(sess.owner, { membershipId: a.membershipId })).ok).toBe(false); // already gone
+    // The address can be invited again afterwards.
+    const again = await send(sess.owner, { emails: [mail("rev")], apps: ["SOP"] });
+    expect(again.ok).toBe(true);
+    await undoInvites(sess.owner, { batchId: again.batchId });
+  });
+
+  it("an expired invite can be sent again and gets a fresh week", async () => {
+    const a = await delivered(sess.owner, mail("renew"));
+    await prisma.invite.updateMany({ where: { membershipId: a.membershipId }, data: { expiresAt: new Date(Date.now() - 1000), deliveredAt: new Date(Date.now() - 8 * 24 * 3600_000) } });
+    expect((await resendInvite(sess.owner, { membershipId: a.membershipId })).ok).toBe(true);
+    const row = (await getInvites(sess.owner)).invites.find((i) => i.email === mail("renew"));
+    expect(row.expired).toBe(false);
+    expect((await getInviteInfo(a.token)).status).toBe("invalid"); // the old link is dead
+    await revokeInvite(sess.owner, { membershipId: a.membershipId });
+  });
+
+  it("only owners and admins get an invite link; it replaces the old one and keeps the dates", async () => {
+    const a = await delivered(sess.owner, mail("copy"), { reportsToId: ids.mgr.m.id });
+    await expect(issueInviteLink(sess.mgr, { membershipId: a.membershipId })).rejects.toBeInstanceOf(AccessError);
+    const before = await prisma.invite.findFirst({ where: { membershipId: a.membershipId } });
+    const r = await issueInviteLink(sess.admin, { membershipId: a.membershipId });
+    expect(r.ok).toBe(true);
+    const token = r.link.split("/invite/")[1];
+    expect((await getInviteInfo(token)).status).toBe("ok");
+    expect((await getInviteInfo(a.token)).status).toBe("invalid");
+    const after = await prisma.invite.findFirst({ where: { membershipId: a.membershipId } });
+    expect(after.expiresAt.getTime()).toBe(before.expiresAt.getTime());
+    expect(await sentTo(mail("copy"))).toHaveLength(1); // no extra email
+    await revokeInvite(sess.owner, { membershipId: a.membershipId });
+  });
+
+  it("a manager sees and manages only the invites they sent", async () => {
+    const mine = await delivered(sess.mgr, mail("mine"));
+    const theirs = await delivered(sess.owner, mail("theirs"));
+    const list = await getInvites(sess.mgr);
+    expect(list.invites.map((i) => i.email)).toContain(mail("mine"));
+    expect(list.invites.map((i) => i.email)).not.toContain(mail("theirs"));
+    expect(await pendingInviteCount(sess.mgr)).toBe(list.pending);
+    expect((await revokeInvites(sess.mgr, { membershipIds: [theirs.membershipId, mine.membershipId] })).results.map((r) => r.ok)).toEqual([false, true]);
+    expect(await prisma.membership.count({ where: { id: theirs.membershipId } })).toBe(1);
+    await revokeInvite(sess.owner, { membershipId: theirs.membershipId });
+  });
+
+  it("bulk resend and revoke work on several rows and report each", async () => {
+    const x = await delivered(sess.owner, mail("b1"));
+    const y = await delivered(sess.owner, mail("b2"));
+    await prisma.invite.updateMany({ where: { membershipId: { in: [x.membershipId, y.membershipId] } }, data: { deliveredAt: new Date(Date.now() - 2 * 3600_000) } });
+    const re = await resendInvites(sess.owner, { membershipIds: [x.membershipId, y.membershipId] });
+    expect(re).toMatchObject({ ok: true, done: 2, failed: 0 });
+    const again = await resendInvites(sess.owner, { membershipIds: [x.membershipId] }); // inside the hour
+    expect(again.results[0].error).toMatch(/you can resend in/i);
+    expect(await revokeInvites(sess.owner, { membershipIds: [x.membershipId, y.membershipId] })).toMatchObject({ done: 2, failed: 0 });
+  });
+
+  it("another organization cannot see, resend, revoke or copy these invites", async () => {
+    const a = await delivered(sess.owner, mail("iso2"));
+    expect((await getInvites(sess.bOwner)).invites).toEqual([]);
+    expect((await revokeInvite(sess.bOwner, { membershipId: a.membershipId })).ok).toBe(false);
+    expect((await resendInvite(sess.bOwner, { membershipId: a.membershipId })).ok).toBe(false);
+    expect((await issueInviteLink(sess.bOwner, { membershipId: a.membershipId })).ok).toBe(false);
+    expect(await prisma.membership.count({ where: { id: a.membershipId } })).toBe(1);
+    await revokeInvite(sess.owner, { membershipId: a.membershipId });
   });
 });

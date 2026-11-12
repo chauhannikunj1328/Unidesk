@@ -14,7 +14,7 @@ export function DataTable({ columns, rows, rowKey = (r) => r.id, onRowClick, row
   return (
     <div className="relative">
       <div className="overflow-x-auto" onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 0)}>
-        <table className="w-full border-separate border-spacing-0 text-left">
+        <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left">
           <thead>
             <tr>
               {columns.map((c, i) => (

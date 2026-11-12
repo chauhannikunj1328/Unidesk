@@ -15,3 +15,9 @@ export const canSeeAccessTab = (viewer) => ["OWNER", "ADMIN", "MANAGER"].include
 /** Recent activity comes from the audit log: owners and admins read all of it; everyone else only their own and, for managers, their reports'. */
 export const canSeeActivity = (viewer, member) =>
   ["OWNER", "ADMIN"].includes(viewer.role) || member.id === viewer.membershipId || (viewer.role === "MANAGER" && member.reportsToId === viewer.membershipId);
+
+/** Owners and admins see every pending invite; managers the ones they sent. Nobody else has the tab. */
+export const canSeeInvitesTab = (viewer) => ["OWNER", "ADMIN", "MANAGER"].includes(viewer.role);
+
+/** Shared data (which apps read contacts, clients and projects) is for owners and admins only. */
+export const canSeeSharedDataTab = (viewer) => ["OWNER", "ADMIN"].includes(viewer.role);

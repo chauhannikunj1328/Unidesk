@@ -1,11 +1,13 @@
 "use client";
-import { Ellipsis, UserCog } from "lucide-react";
+import { Ellipsis, Send, UserCog } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable } from "@/components/ui/DataTable";
 import { IconButton } from "@/components/ui/IconButton";
 import { Menu } from "@/components/ui/Menu";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { useTheme } from "@/components/shell/ThemeProvider";
+import { useToast } from "@/components/ui/Toast";
+import { resendInviteAction } from "../invite-actions";
 import { formatRelative, daysAgo } from "@/lib/dates";
 import { canEditMember, canOpenMember } from "../permissions";
 import { AppChips, RoleChip } from "./bits";
@@ -27,6 +29,11 @@ function Status({ member, timezone }) {
 
 /** Members table (04-team-people-list.md). Same columns and menu in every theme that shows a table. */
 export function PeopleTable({ members, viewer, timezone, onOpen, empty }) {
+  const toast = useToast();
+  async function resend(m) {
+    const r = await resendInviteAction({ membershipId: m.id });
+    toast(r.ok ? { kind: "success", message: `Invite sent again to ${r.email}` } : { kind: "error", message: r.error });
+  }
   const columns = [
     { key: "name", header: "Member", render: (m) => (
       <span className="flex items-center gap-3"><Avatar name={m.name} size={36} /><span className="min-w-0"><span className="block truncate font-medium text-ink">{m.name}</span><span className="block truncate text-sm font-normal text-muted">{m.email}</span></span></span>
@@ -39,7 +46,7 @@ export function PeopleTable({ members, viewer, timezone, onOpen, empty }) {
     { key: "actions", header: <span className="sr-only">Actions</span>, align: "right", render: (m) => (
       canEditMember(viewer, m) ? (
         <span onClick={(e) => e.stopPropagation()}>
-          <Menu items={[{ label: "Edit access", icon: UserCog, onSelect: () => onOpen(m) }]} trigger={({ toggle }) => <IconButton icon={Ellipsis} label={`Actions for ${m.name}`} variant="outline" size={32} onClick={toggle} />} />
+          <Menu items={[{ label: "Edit access", icon: UserCog, onSelect: () => onOpen(m) }, ...(m.status === "invited" ? [{ label: "Resend invite", icon: Send, onSelect: () => resend(m) }] : [])]} trigger={({ toggle }) => <IconButton icon={Ellipsis} label={`Actions for ${m.name}`} variant="outline" size={32} onClick={toggle} />} />
         </span>
       ) : null
     ) },

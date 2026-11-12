@@ -161,7 +161,6 @@ function InviteDrawer({ data, viewer, startRole, onClose }) {
         onClose={requestClose}
         title="Invite people"
         width={480}
-        band={theme === "grove"}
         summary={
           <span className="flex items-start gap-2 rounded-[14px] bg-subtle px-3.5 py-3 text-sm text-text" aria-live="polite">
             <Info size={16} strokeWidth={1.75} aria-hidden className="mt-0.5 shrink-0" />
@@ -266,6 +265,7 @@ function InviteDrawer({ data, viewer, startRole, onClose }) {
 
 /** The primary "Invite member" button for the page header. Opens the drawer by adding ?invite=1. */
 export function InviteButton({ role, variant = "primary" }) {
+  const theme = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   if (invitableRoles(role).length === 0) return null;
@@ -279,7 +279,7 @@ export function InviteButton({ role, variant = "primary" }) {
         router.replace(`${pathname}?${next.toString()}`, { scroll: false });
       }}
     >
-      Invite member
+      {theme === "grove" ? "Invite member" : "Invite people"}
     </Button>
   );
 }

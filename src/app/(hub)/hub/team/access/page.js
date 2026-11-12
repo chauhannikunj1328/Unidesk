@@ -4,6 +4,7 @@ import { requireSession } from "@/server/session";
 import { getTheme } from "@/lib/theme";
 import { getTeam } from "@/features/team/queries";
 import { canSeeAccessTab } from "@/features/team/permissions";
+import { teamTabs } from "@/features/team/ui/tabs";
 import { ThemePageHeader } from "@/components/shell/ThemePageHeader";
 import { PastelAccess } from "@/themes/pastel/team/PastelAccess";
 import { GroveAccess } from "@/themes/grove/team/GroveAccess";
@@ -32,7 +33,7 @@ export default async function TeamAccessPage() {
         title={theme === "grove" ? "App access" : "Team"}
         description="Who can open which app. Changes save right away and are recorded in the audit log."
         chips={[{ label: `${active} active`, dot: "#a6c64a" }, ...(invited ? [{ label: `${invited} invite pending`, dot: "#f2b94b" }] : []), { label: `${data.seats.used} of ${data.seats.limit} seats` }]}
-        tabs={[{ href: "/hub/team", label: "People", count: data.members.length }, { href: "/hub/team/access", label: "App access" }]}
+        tabs={teamTabs({ theme, viewer, team: data, canAccess: true })}
         user={session}
         timezone={data.timezone}
       />
